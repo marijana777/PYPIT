@@ -1987,6 +1987,8 @@ def searching_for_the_grail(pixpk=None, npix=2048, extrap_off=500.):
         # Extrap
         go_lower = extrap_lines(idlines, pixpk[allpk], llist,
                                 min_extrap=11, pix0=pix0)
+        # ID lines within current IDs (*aggressive* rejection)
+        identify_newlines(idlines, pixpk, llist)
 
     msgs.info("Extrapolating to higher lines")
     go_higher = True
@@ -1996,16 +1998,80 @@ def searching_for_the_grail(pixpk=None, npix=2048, extrap_off=500.):
 
         # Fit IDs [using them all for the moment]
         idlines.set_closest(maxID, 5)
-        idlines.fit_poly(3)
+        idlines.fit_poly(2)
         #debugger.set_trace()
         allpk = pixpk > maxID
 
         # Extrap
         go_higher = extrap_lines(idlines, pixpk[allpk], llist,
-                                min_extrap=11, pix1=pix1)
+                                min_extrap=11, pix1=pix1)#, debug=True)
+        if go_higher is False:
+            go_higher = extrap_lines(idlines, pixpk[allpk], llist,
+                                     min_extrap=9, pix1=pix1, tolerpix=4.0,
+                                     debug=True)
+        # ID lines within current IDs (*aggressive* rejection)
+        identify_newlines(idlines, pixpk, llist)
 
+    # Final fit
+    idlines.set_all()
+    idlines.fit_poly(3)
+    identify_newlines(idlines, pixpk, llist, do_inbetween=False)#, debug=True)
+    idlines.set_all()
+    idlines.fit_poly(3)
+    waves = idlines.eval_poly(idlines.all_pix)
+    rms = np.sqrt(np.sum((waves-idlines.all_wave)**2)/idlines.npix)
+    print('rms = {:g}'.format(rms))
     debugger.set_trace()
 
+def identify_newlines(idlines, pixpk, llist, do_inbetween=True,
+                      debug=False):
+    """
+    Parameters
+    ----------
+    idlines
+    pixpk
+
+    Returns
+    -------
+
+    """
+    # Fit all ID lines
+    idlines.set_all()
+    idlines.fit_poly(3)
+    xc = idlines.curr_fit['xc']
+    #  Possible ones
+    if do_inbetween:
+        inbetween = np.where((pixpk>idlines.min_pix) & (pixpk<idlines.max_pix))[0]
+        if len(inbetween) == 0:
+            msgs.info("No lines avaialble for fitting inbetween the ID lines")
+        #  No duplicates
+        pixpk = pixpk[inbetween]
+    msk = pixpk == pixpk
+    for ii,pix in enumerate(pixpk):
+        if idlines.in_allpix(pix):
+            msk[ii] = False
+    #  Assign fit wavelengths
+    waves = idlines.eval_poly(pixpk)
+    # Search for a strict match
+    matches = simple_match_lines(waves, llist['wave'], toler=idlines.dwv*0.3) # strict
+    badm = matches < 1
+    msk[badm] = False
+    gd_try = np.sum(msk)
+    if gd_try == 0:
+        msgs.info("No lines available for fitting")
+    # Fit to mask
+    fitmsk = np.where(msk)[0]
+    pix = np.concatenate([idlines.pix, pixpk[fitmsk]])
+    wave = np.concatenate([idlines.wave, matches[fitmsk]])
+    mask, coeff = arutils.robust_polyfit(pix-xc, wave, 3, sigma=2.)
+    # Final mask
+    rej = np.where(mask[idlines.npix:])[0]
+    msk[fitmsk[rej]] = False
+    if debug:
+        debugger.set_trace()
+    # Add to idlines
+    for idx in np.where(msk)[0]:
+        idlines.add_ID(pixpk[idx], matches[idx])
 
 def init_idlines():
     """
@@ -2022,8 +2088,9 @@ def init_idlines():
     return idlines
 
 
-def extrap_lines(idlines, pixpk, llist, dwvdpix=None, tolerpix=2,
-                 pix0=None, pix1=None, min_extrap=11, min_nhits=9):
+def extrap_lines(idlines, pixpk, llist, dwvdpix=None, tolerpix=4.,
+                 pix0=None, pix1=None, min_extrap=11, min_nhits=9,
+                 debug=True):
     """
     Parameters
     ----------
@@ -2042,13 +2109,7 @@ def extrap_lines(idlines, pixpk, llist, dwvdpix=None, tolerpix=2,
     xc = idlines.curr_fit['xc']
     #
     if dwvdpix is None:
-        wvs = arutils.func_val(idlines.curr_fit['coeff'],
-                               np.array([xc,xc+1]),
-                               idlines.curr_fit['func'],
-                               minv=idlines.curr_fit['minv'],
-                               maxv=idlines.curr_fit['maxv'])
-        dwvdpix = np.abs(wvs[1]-wvs[0])
-
+        dwvdpix = idlines.dwv
     # Convert to wavelengths
     wavepk = arutils.func_val(idlines.curr_fit['coeff'], pixpk-xc,
                                idlines.curr_fit['func'],
@@ -2122,9 +2183,28 @@ def extrap_lines(idlines, pixpk, llist, dwvdpix=None, tolerpix=2,
         imatch = gdm[mxpk[np.argmax(np.abs(dx))]]
         #debugger.set_trace()
 
+    if debug:
+        coeffr = arutils.func_fit(idlines.pix-xc,
+                                  idlines.wave, 'polynomial', 1)
+        Dlp = (matches[gdm]-coeffr[0]-coeffr[1]*(pixpk[gdm]-xc))/(pixpk[gdm]-xc)**2
+        plt.clf()
+        ax = plt.gca()
+        #ax.scatter(ex_lines[gdp]-xmean, matches[gdp]-guesses[gdp], marker='o')
+        dx = pixpk[gdm]-xc
+        ax.scatter(dx, Dlp, marker='o')
+        ax.set_xlabel('dx')
+        ax.set_ylabel('dlambda_prime')
+        ax.set_ylim(-3e-5,7e-5)
+        plt.show()
+        plt.close()
+        #debugger.set_trace()
+
+    #
     idlines.add_ID(pixpk[imatch], matches[imatch])
     msgs.info("Added ID {:g} at wavelength {:g} with {:d} hits".format(
             pixpk[imatch], matches[imatch], mxhit))
+
+
     return True
 
     #
@@ -2255,6 +2335,23 @@ class IDLines(object):
     def max_pix(self):
         return np.max(self.all_pix)
 
+    @property
+    def npix(self):
+        return self.all_pix.size
+
+    @ property
+    def dwv(self):
+        xc = self.curr_fit['xc']
+        wvs = arutils.func_val(self.curr_fit['coeff'],
+                               np.array([xc,xc+1]),
+                               self.curr_fit['func'],
+                               minv=self.curr_fit['minv'],
+                               maxv=self.curr_fit['maxv'])
+        dwvdpix = np.abs(wvs[1]-wvs[0])
+        return dwvdpix
+
+
+
     def add_ID(self, pix, wave):
         """ Add a new ID'd line
         Parameters
@@ -2274,6 +2371,25 @@ class IDLines(object):
         isrt = np.argsort(self.all_pix)
         self.all_pix = self.all_pix[isrt]
         self.all_wave = np.concatenate([self.all_wave, np.array([wave])])[isrt]
+
+
+    def eval_poly(self, pixels):
+        """
+        Parameters
+        ----------
+        pixels
+
+        Returns
+        -------
+
+        """
+        waves = arutils.func_val(self.curr_fit['coeff'],
+                               pixels-self.curr_fit['xc'],
+                               self.curr_fit['func'],
+                               minv=self.curr_fit['minv'],
+                               maxv=self.curr_fit['maxv'])
+        #
+        return waves
 
     def fit_poly(self, deg):
         """
@@ -2295,7 +2411,20 @@ class IDLines(object):
                                                      self.curr_fit['func'],
                                                      self.curr_fit['deg'])
 
-    # Find matches
+    def in_allpix(self, pix):
+        """
+        Parameters
+        ----------
+        pix
+
+        Returns
+        -------
+
+        """
+        if np.min(np.abs(self.all_pix-pix)) < 0.3:
+            return True
+        else:
+            return False
 
     def set_all(self):
         """ Set pix, wave to the all values
