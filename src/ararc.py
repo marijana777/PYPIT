@@ -1955,7 +1955,8 @@ def extrap_Nlines(lines_pix, ids_idx, ids_wave, llist, fdict=None, Nextrap=5):
 
     return extrap_lines, guesses, matches
 
-def searching_for_the_grail(pixpk=None, npix=2048, extrap_off=500.):
+def searching_for_the_grail(pixpk=None, idlines=None, npix=2048,
+                            llist=None, extrap_off=500.):
     """ ID lines in quadrants to solve the Holy Grail
 
     Returns
@@ -1966,9 +1967,11 @@ def searching_for_the_grail(pixpk=None, npix=2048, extrap_off=500.):
     if pixpk is None:
         pixpk = init_pixpk()
     # Input IDs
-    idlines = init_idlines()
+    if idlines is None:
+        idlines = init_idlines()
     # Linelist
-    llist = ararclines.load_arcline_list(None,None,
+    if llist is None:
+        llist = ararclines.load_arcline_list(None,None,
                                          ['ArI','NeI','HgI','KrI','XeI'],None)
 
     # Interpolate first [not yet implemented]
@@ -2120,7 +2123,7 @@ def extrap_lines(idlines, pixpk, llist, dwvdpix=None, tolerpix=4.,
     gdm = np.where(matches > 1.)[0]
     if len(gdm) < min_extrap:
         msgs.warn("Not enough matches to extrapolate ({:d})".format(len(gdm)))
-        debugger.set_trace()
+        #debugger.set_trace()
         return False
     # Cut
     if pix0 is not None: # low sid3
