@@ -157,7 +157,6 @@ def setup_param(slf, sc, det, fitsdict):
         func='legendre',     # Function for fitting
         n_first=1,           # Order of polynomial for first fit
         n_final=4,           # Order of polynomial for final fit
-        saturated=1e9,       # Saturation limit
         nsig_rej=2.,         # Number of sigma for rejection
         nsig_rej_final=3.0,  # Number of sigma for rejection (final fit)
         Nstrong=13)          # Number of lines for auto-analysis
@@ -202,16 +201,13 @@ def setup_param(slf, sc, det, fitsdict):
             arcparam['b2']= -6.86414978e-09
             arcparam['wvmnx'][1] = 6000.
     elif sname=='lris_red':
-        lamps = ['HgI','ArI','NeI','XeI','KrI']
-        #lamps = ['HgI','NeI','ArI']
+        lamps = ['ArI','NeI','HgI','KrI','XeI']  # Should set according to the lamps that were on
         if disperser == '600/7500':
             arcparam['n_first']=2 # Too much curvature for 1st order
             arcparam['disp']=0.80 # Ang per pixel (unbinned)
             arcparam['b1']= 1./arcparam['disp']/slf._msarc[det-1].shape[0]
 #            arcparam['b2']= -6.86414978e-09
-            arcparam['wvmnx'][0] = 5600.
-            arcparam['wvmnx'][1] = 8500.
-            arcparam['saturated']=60000. # Saturation limit
+            arcparam['wvmnx'][1] = 9000.
         elif disperser == '900/5500':
             arcparam['n_first']=2 # Too much curvature for 1st order
             arcparam['disp']=0.53 # Ang per pixel (unbinned)
@@ -235,7 +231,6 @@ def setup_param(slf, sc, det, fitsdict):
     #    format='fixed_width_no_header', comment='#', #data_start=1, 
     #    names=('wave', 'flag', 'ID'),
     #    col_starts=(0,12,14), col_ends=(11,13,24))
-
     # Binning
     if fitsdict['binning'][idx[0]] in ['2,2']:
         arcparam['disp'] *= 2
@@ -257,8 +252,6 @@ def simple_calib(slf, det, get_poly=False):
     final_fit : dict
       Dict of fit info
     """
-    # Parameters (just for convenience)
-    aparm = slf._arcparam[det-1]
 
     # Extract the arc
     msgs.work("Detecting lines..")
@@ -268,71 +261,94 @@ def simple_calib(slf, det, get_poly=False):
     tcent = tcent[w]
     tampl = tampl[w]
     msgs.info('Detected {:d} lines in the arc spectrum.'.format(len(w[0])))
-    unsat = tampl < aparm['saturated']
-    tcent = tcent[unsat]
-    tampl = tampl[unsat]
-    msgs.info('{:d} unsaturated lines in the arc spectrum.'.format(np.sum(unsat)))
+
+    # Parameters (just for convenience)
+    aparm = slf._arcparam[det-1]
 
     # Read Arc linelist
     llist = aparm['llist']
 
-    # Generate dpix pairs
-    nlist = len(llist)
-    dpix_list = np.zeros((nlist,nlist))
-    for kk,row in enumerate(llist):
-        #dpix_list[kk,:] = (np.array(row['wave'] - llist['wave']))/disp
-        dpix_list[kk,:] = slf._msarc[det-1].shape[0]*(aparm['b1']*(np.array(row['wave'] - llist['wave'])) + aparm['b2']*np.array(row['wave']**2 - llist['wave']**2) )
+    # IDs were input by hand
+    if slf._argflag['arc']['calibrate']['id_pix'][0] > 0.:
+        # Check that there are at least 5 values
+        pixels = np.array(slf._argflag['arc']['calibrate']['id_pix'])
+        if np.sum(pixels > 0.) < 5:
+            msgs.error("Need to give at least 5 pixel values!")
+        #
+        msgs.info("Using input lines to seed the wavelength solution")
+        # Match input lines to observed spectrum
+        nid = len(slf._argflag['arc']['calibrate']['id_pix'])
+        idx_str = np.ones(nid).astype(int)
+        ids = np.zeros(nid)
+        gd_str = np.arange(nid).astype(int)
+        for jj,pix in enumerate(slf._argflag['arc']['calibrate']['id_pix']):
+            diff = np.abs(tcent-pix)
+            if np.min(diff) > 1.:
+                msgs.error("No match with input pixel {:g}!".format(pix))
+            else:
+                imn = np.argmin(diff)
+            # Set
+            idx_str[jj] = imn
+            # Take wavelength from linelist instead of input value?
+            ids[jj] = slf._argflag['arc']['calibrate']['id_wave'][jj]
+        idsion = np.array(['     ']*nid)
+    else:
+        # Generate dpix pairs
+        msgs.info("Using pair algorithm for wavelength solution")
+        nlist = len(llist)
+        dpix_list = np.zeros((nlist,nlist))
+        for kk,row in enumerate(llist):
+            #dpix_list[kk,:] = (np.array(row['wave'] - llist['wave']))/disp
+            dpix_list[kk,:] = slf._msarc[det-1].shape[0]*(aparm['b1']*(np.array(row['wave'] - llist['wave'])) + aparm['b2']*np.array(row['wave']**2 - llist['wave']**2) )
 
-    # Lambda pairs for the strongest N lines
-    srt = np.argsort(tampl)
-    idx_str = srt[-aparm['Nstrong']:]
-    idx_str.sort()
-    dpix_obs = np.zeros((aparm['Nstrong'],aparm['Nstrong']))
-    for kk,idx in enumerate(idx_str):
-        dpix_obs[kk,:] = np.array(tcent[idx] - tcent[idx_str])
+        # Lambda pairs for the strongest N lines
+        srt = np.argsort(tampl)
+        idx_str = srt[-aparm['Nstrong']:]
+        idx_str.sort()
+        dpix_obs = np.zeros((aparm['Nstrong'],aparm['Nstrong']))
+        for kk,idx in enumerate(idx_str):
+            dpix_obs[kk,:] = np.array(tcent[idx] - tcent[idx_str])
 
-    # Match up (ugly loops)
-    ids = np.zeros(aparm['Nstrong'])
-    idsion = np.array(['     ']*aparm['Nstrong'])
-    for kk in range(aparm['Nstrong']):
-        med_off = np.zeros(nlist)
-        for ss in range(nlist):
-            dpix = dpix_list[ss]
-            min_off = []
-            for jj in range(aparm['Nstrong']):
-                min_off.append(np.min(np.abs(dpix_obs[kk,jj]-dpix)))
-            med_off[ss] = np.median(min_off)
-        # Set by minimum
-        idm = np.argmin(med_off)
-        ids[kk] = llist['wave'][idm]
-        idsion[kk] = llist['Ion'][idm]
+        # Match up (ugly loops)
+        ids = np.zeros(aparm['Nstrong'])
+        idsion = np.array(['     ']*aparm['Nstrong'])
+        for kk in range(aparm['Nstrong']):
+            med_off = np.zeros(nlist)
+            for ss in range(nlist):
+                dpix = dpix_list[ss]
+                min_off = []
+                for jj in range(aparm['Nstrong']):
+                    min_off.append(np.min(np.abs(dpix_obs[kk,jj]-dpix)))
+                med_off[ss] = np.median(min_off)
+            # Set by minimum
+            idm = np.argmin(med_off)
+            ids[kk] = llist['wave'][idm]
+            idsion[kk] = llist['Ion'][idm]
 
-    # Calculate disp of the strong lines
-    disp_str = np.zeros(aparm['Nstrong'])
-    for kk in range(aparm['Nstrong']):
-        disp_val = (ids[kk]-ids)/(tcent[idx_str[kk]]-tcent[idx_str])
-        isf = np.isfinite(disp_val)
-        disp_str[kk] = np.median(disp_val[isf])
-    # Consider calculating the RMS with clipping
-    gd_str = np.where( np.abs(disp_str-aparm['disp'])/aparm['disp'] < aparm['disp_toler'])[0]
-#    slf._qa.close()
-#    debugger.set_trace()
-    msgs.info('Found {:d} lines within the dispersion threshold'.format(len(gd_str)))
-    if len(gd_str) < 5:
-        print(disp_str, aparm['disp'])
-        debugger.set_trace()
-        msgs.error('Insufficient lines to auto-fit.')
-#        slf._qa.close()
+        # Calculate disp of the strong lines
+        disp_str = np.zeros(aparm['Nstrong'])
+        for kk in range(aparm['Nstrong']):
+            disp_val = (ids[kk]-ids)/(tcent[idx_str[kk]]-tcent[idx_str])
+            isf = np.isfinite(disp_val)
+            disp_str[kk] = np.median(disp_val[isf])
+        # Consider calculating the RMS with clipping
+        gd_str = np.where( np.abs(disp_str-aparm['disp'])/aparm['disp'] < aparm['disp_toler'])[0]
+    #    slf._qa.close()
+    #    debugger.set_trace()
+        msgs.info('Found {:d} lines within the dispersion threshold'.format(len(gd_str)))
+        if len(gd_str) < 5:
+            msgs.error('Insufficient lines to auto-fit.')
+    #        slf._qa.close()
 
     # Debug
     #debug=True
     if msgs._debug['arc']:
-        tmp = list(gd_str)
-        tmp.pop(1)
-        gd_str = np.array(tmp)
+        #tmp = list(gd_str)
+        #tmp.pop(1)
+        #gd_str = np.array(tmp)
+        #xdb.xpcol(tcent[idx_str[gd_str]],ids[gd_str])
+        #xdb.xplot(tcent[idx_str[gd_str]],ids[gd_str],scatter=True)
         debugger.set_trace()
-        debugger.xpcol(tcent[idx_str[gd_str]],ids[gd_str])
-        debugger.xplot(tcent[idx_str[gd_str]],ids[gd_str],scatter=True)
 
     # Consider a cross-correlation here (as a double-check)
 
@@ -352,8 +368,7 @@ def simple_calib(slf, det, get_poly=False):
         #msgs.info('n_order={:d}'.format(n_order))
         # Fit with rejection
         xfit, yfit = tcent[ifit], all_ids[ifit]
-        mask, fit = arutils.robust_polyfit(xfit, yfit, n_order,
-            function=aparm['func'], sigma=aparm['nsig_rej'], minv=fmin, maxv=fmax)
+        mask, fit = arutils.robust_polyfit(xfit, yfit, n_order, function=aparm['func'], sigma=aparm['nsig_rej'], minv=fmin, maxv=fmax)
         # DEBUG
         if msgs._debug['arc']:
             debugger.xpcol(xfit,yfit)
@@ -387,9 +402,7 @@ def simple_calib(slf, det, get_poly=False):
     # Final fit (originals can now be rejected)
     fmin, fmax = 0., 1. 
     xfit, yfit = tcent[ifit]/slf._msarc[det-1].shape[0], all_ids[ifit]
-    mask, fit = arutils.robust_polyfit(xfit, yfit, n_order, 
-        function=aparm['func'], sigma=aparm['nsig_rej_final'],
-        minv=fmin, maxv=fmax)#, debug=True)
+    mask, fit = arutils.robust_polyfit(xfit, yfit, n_order, function=aparm['func'], sigma=aparm['nsig_rej_final'], minv=fmin, maxv=fmax)#, debug=True)
     irej = np.where(mask==1)[0]
     if len(irej) > 0:
         xrej = xfit[irej]
@@ -413,8 +426,6 @@ def simple_calib(slf, det, get_poly=False):
         debugger.xpcol(xfit*msarc.shape[0], yfit)
         debugger.set_trace()
 
-        wave = arutils.func_val(fit, np.arange(msarc.shape[0]), 'legendre', 
-            minv=fmin, maxv=fmax)
         debugger.xplot(xfit, np.ones(len(xfit)), scatter=True,
             xtwo=np.arange(msarc.shape[0]),ytwo=yprep)
         debugger.xplot(xfit,yfit, scatter=True, xtwo=np.arange(msarc.shape[0]),
@@ -433,7 +444,7 @@ def simple_calib(slf, det, get_poly=False):
     # Pack up fit
     final_fit = dict(fitc=fit, function=aparm['func'], xfit=xfit, yfit=yfit,
         ions=ions, fmin=fmin, fmax=fmax, xnorm=float(slf._msarc[det-1].shape[0]),
-        xrej=xrej, yrej=yrej)
+        xrej=xrej, yrej=yrej, mask=mask)
     # QA
     arqa.arc_fit_qa(slf, final_fit, yprep)
     # Return
