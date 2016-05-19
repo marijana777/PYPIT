@@ -1836,7 +1836,7 @@ def load_arcline(slf, wavenumber=True, vacuum=True):
         wv = 1.0E8/wn
     else:
         wv = wn
-    # Convert to vacuum if the input is not in vacuum
+    # Convert to vacuum if the input is not in vacuum  
     if not vacuum:
         msgs.work("Convert input vacuum wavelengths to air wavelengths")
     return wv
