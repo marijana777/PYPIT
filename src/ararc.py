@@ -1880,6 +1880,11 @@ def arcord_strdir(maskorder):
                 dirc = tdirc
     return sord, int(ncts), dirc
 
+#############################################################
+#############################################################
+#############################################################
+#############################################################
+
 def simple_match_lines(guesses, llist, toler=0.5):
     """ Match a set of input lines to a given line list
     Simple for loop.  Ok for ~10 guesses
@@ -2085,8 +2090,9 @@ def init_idlines():
     id_dict = {'dlamb': 1.6,
                'first_id_idx': [30, 35, 37, 43, 44],
                'first_id_pix': np.array([ 638.93076161,  746.09652748,  770.25572854,  902.1922555 , 924.47068438]),
-               'first_id_wave': np.array([ 6506.528 ,  6678.2766,  6717.043 ,  6929.4672,  6965.431 ]),
+               'first_id_wave': np.array([ 6508.326 ,  6680.1201,  6718.8974 ,  6931.3788,  6967.352]),
                }
+    #'first_id_wave': np.array([ 6506.528 ,  6678.2766,  6717.043 ,  6929.4672,  6965.431 ]),
     idlines = IDLines(id_dict['first_id_pix'], id_dict['first_id_wave'])
     return idlines
 
@@ -2474,3 +2480,43 @@ class IDLines(object):
     pix0 = regs[i0,0]
     pix1 = regs[i1,1]
 """
+
+def grid_solve():
+    """ Generate a 4-parameter solution from a grid
+
+    Returns
+    -------
+
+    """
+
+def init_holy2():
+    """ Initialize the start of holy phase 2
+    Returns
+    -------
+
+    """
+    # Grab Detected lines
+    pixpk = init_pixpk()
+    # Grab ID's (from Holy 1)
+    idpix = np.array([638.93076161,  746.09652748,  770.25572854,  902.1922555, 924.47068438])
+    idwave = np.array([6508.326,  6680.1201,  6718.8974,  6931.3788,  6967.352])
+
+    # Fit with 3rd order
+    func = 'polynomial'
+    mask, pparam = arutils.robust_polyfit(idwave, idpix, 2, function=func)
+    pixfit = arutils.func_val(pparam, idwave, func)
+    prms = np.sqrt(np.mean((pixfit-idpix)**2))
+    print('RMS = {:g}'.format(prms))
+
+    # Setup global pixel fit
+    wvmin, wvmax = np.min(idwave), np.max(idwave)
+    wvcen = np.mean([wvmin,wvmax])
+    pixcen = arutils.func_val(pparam, wvcen, func)
+    dpixcen = pparam[1]*wvcen + pparam[2]*(wvmax**2-wvmin**2)/(wvmax-wvmin)*wvcen
+    chk = True
+    if chk:
+        wvval = (idwave - wvcen)/wvcen
+        idpval = idpix - pixcen - dpixcen*wvval
+        debugger.xpcol(wvval, idpix, idpval)
+
+    # Ready to go
