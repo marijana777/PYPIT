@@ -2495,11 +2495,24 @@ def init_holy2():
     -------
 
     """
-    # Grab Detected lines
-    pixpk = init_pixpk()
-    # Grab ID's (from Holy 1)
-    idpix = np.array([638.93076161,  746.09652748,  770.25572854,  902.1922555, 924.47068438])
-    idwave = np.array([6508.326,  6680.1201,  6718.8974,  6931.3788,  6967.352])
+    import json
+    from scipy.optimize import curve_fit
+
+    # Open test solution
+    root = '/Users/xavier/local/Python/PYPIT'
+    wvsoln_fil = root+'/test_suite/lrisr_600_7500_holy.json'
+    with open(wvsoln_fil) as data_file:
+        wvsoln_dict = json.load(data_file)
+    xnorm = (wvsoln_dict['xnorm']-1)
+    all_idpix = np.array(wvsoln_dict['xfit'])*xnorm
+    all_idwv = np.array(wvsoln_dict['yfit'])
+    # Grab inner 5
+    diff = np.abs(all_idpix-1024)
+    asrt = np.argsort(diff)
+    idpix = all_idpix[asrt[0:5]]
+    idpix.sort()
+    idwave = all_idwv[asrt[0:5]]
+    idwave.sort()
 
     # Fit with 3rd order
     func = 'polynomial'
@@ -2519,4 +2532,43 @@ def init_holy2():
         idpval = idpix - pixcen - dpixcen*wvval
         debugger.xpcol(wvval, idpix, idpval)
 
+    def x2x3_fit(x, p0, p1):
+        return p0*x**2 + p1*x**3
+
+    # Right answer
+    xxval = (all_idwv-wvcen)/wvcen
+    yyval = all_idpix-pixcen-dpixcen*xxval
+    ppopt, ppcov = curve_fit(x2x3_fit, xxval, yyval)
+
+
+    # Linelist
+    alist = ararclines.load_arcline_list(None,None,['ArI','NeI','HgI','KrI','XeI'],None)
+    llist = np.array(alist['wave'])
+    llist.sort()
+    ends = arutils.func_val(wvsoln_dict['fitc'], np.array([0.,1.]), wvsoln_dict['function'],
+                            minv=wvsoln_dict['fmin'], maxv=wvsoln_dict['fmax'])
+    keep = np.where((llist > ends[0]-200) & (llist < ends[1]+200))[0]
+    llist = llist[keep]
+
+    # Add in non-calib lines
+    tcent = np.array(wvsoln_dict['tcent'])
+    msktc = tcent == tcent
+    for jj,ipix in enumerate(all_idpix):
+        diff = np.abs(tcent-ipix)
+        if np.min(diff) < 1.:
+            msktc[np.argmin(diff)] = False
+    newtc = tcent[msktc]
+    newwv = arutils.func_val(wvsoln_dict['fitc'], newtc/xnorm, wvsoln_dict['function'],
+                             minv=wvsoln_dict['fmin'], maxv=wvsoln_dict['fmax'])
+    allwv = np.concatenate([llist,newwv])
+    allwv.sort()
+
+    debugger.set_trace()
+
     # Ready to go
+    ntst = 100
+    tst_val = np.linspace(0., 2*ppopt[3], ntst)
+    tst_chi = np.zeros(ntst)
+    for jj in xrange(ntst):
+        tst_chi[jj] = holy_cross_lines(all_idpix, )
+    debugger.set_trace()
