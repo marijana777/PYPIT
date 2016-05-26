@@ -60,11 +60,11 @@ def run_holy2(tcent, idpix, idwave, npix, llist, noncalib=None, ngrid=100,
         idpval = idpix - pixcen - dpixcen*wvval
         debugger.xpcol(wvval, idpix, idpval)
 
-    def x2x3_fit(x, p2, p3):
-        return p2*x**2 + p3*x**3
 
     '''
     # Right answer
+    def x2x3_fit(x, p2, p3):
+        return p2*x**2 + p3*x**3
     xxval = (all_idwv-wvcen)/wvcen
     yyval = all_idpix-pixcen-dpixcen*xxval
     ppopt, ppcov = curve_fit(x2x3_fit, xxval, yyval)

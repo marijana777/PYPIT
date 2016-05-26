@@ -725,8 +725,9 @@ def robust_polyfit(xarray, yarray, order, weights=None, maxone=True,
         ct = func_fit(xfit, yfit, function, order, w=wfit, minv=minv, maxv=maxv, **kwargs)
         yrng = func_val(ct, xarray, function, minv=minv, maxv=maxv)
         sigmed = 1.4826*np.median(np.abs(yfit-yrng[w]))
-        if xarray.size-np.sum(mask) <= order+2:
-            msgs.warn("More parameters than data points - fit might be undesirable")
+        #if xarray.size-np.sum(mask) <= order+2:
+        if xarray.size-np.sum(mask) <= order:
+            msgs.warn("More or same number of parameters as data points - fit might be undesirable")
             break  # More data was masked than allowed by order
         if maxone:  # Only remove the most deviant point
             tst = np.abs(yarray[w]-yrng[w])

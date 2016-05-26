@@ -248,7 +248,7 @@ def evalaute_ids(tids, tmsk, twv):
     return ID, gdID, badID
 
 
-def test_holy1(infil='/test_suite/lrisr_600_7500_holy.json',
+def test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json',
                outfil=None, ngrid=250, p23_frac = 0.25):
     """ Test number and location of Holy 1 lines
 
@@ -267,7 +267,7 @@ def test_holy1(infil='/test_suite/lrisr_600_7500_holy.json',
     # Loop on nlines and pixcen
     nlines = [3,4,5]
     pixcen = np.round(np.linspace(100.,2000.,10)).astype(int)
-    odict = dict(ngrid=ngrid, p23_frac=p23_frac, nlines=nlines,
+    odict = dict(ngrid=ngrid, p23_frac=p23_frac, nlines=nlines, infil=infil,
                     pixcen=pixcen, runs={}, maxID=np.sum(tmsk))
     for nline in nlines:
         print('nline = {:d}'.format(nline))
@@ -291,7 +291,7 @@ def test_holy1(infil='/test_suite/lrisr_600_7500_holy.json',
         print("Wrote output to {:s}".format(outfil))
 
 
-def test_tcent(infil='/test_suite/lrisr_600_7500_holy.json',
+def test_tcent(infil='/holy_grail/lrisr_600_7500_holy.json',
                outfil=None, ngrid=250, p23_frac = 0.25,
                nmodify=None,
                seed=1234):
@@ -320,7 +320,7 @@ def test_tcent(infil='/test_suite/lrisr_600_7500_holy.json',
         nmodify = [-20, -10, 10, 40]
     #pixcen = np.round(np.linspace(100., 2000., 3)).astype(int)
     pixcen = np.round(np.linspace(100., 2000., 5)).astype(int)
-    odict = dict(ngrid=ngrid, p23_frac=p23_frac, nlines=nline,
+    odict = dict(ngrid=ngrid, p23_frac=p23_frac, nlines=nline, infil=infil,
                     pixcen=pixcen, nmodify=nmodify, ntrial=ntrial, runs={})
     for nmod in nmodify:
         print('nmodify = {:d}'.format(nmod))
@@ -361,7 +361,7 @@ def test_tcent(infil='/test_suite/lrisr_600_7500_holy.json',
 
 
 """ PLOTS """
-def plot_ngoodbad(json_fil, parms, title, outfil):
+def plot_ngoodbad(json_fil, parms, title, outfil, lgd_loc='lower left'):
     """
     Parameters
     ----------
@@ -423,7 +423,7 @@ def plot_ngoodbad(json_fil, parms, title, outfil):
     # Legend
     #legend = ax.legend(loc='lower left', borderpad=0.3,
     #                   handletextpad=0.3, fontsize='large')
-    legend = ax.legend(loc='lower left', scatterpoints=1, borderpad=0.3,
+    legend = ax.legend(loc=lgd_loc, scatterpoints=1, borderpad=0.3,
                         handletextpad=0.3, fontsize='small', numpoints=1)
 
     # Label
@@ -457,11 +457,12 @@ def main(flg_test):
 
     # Holy2 with varying Holy1 input
     if (flg_test % 2**2) >= 2**1:
-        test_lrisr_600_7500()
+        test_holy1(infil='lrisr_600_7500_holy.json',
+                   ngrid=500, outfil='test_holy1_lrisr600_500.json')
 
     # Holy2 tcent
     if (flg_test % 2**3) >= 2**2:
-        test_tcent(outfil='test_tcent.json')
+        test_tcent(infil='lrisr_600_7500_holy.json', ngrid=500, outfil='test_tcent_lrisr600.json')
 
 # Command line execution
 if __name__ == '__main__':
