@@ -29,25 +29,31 @@ def argflag_init():
     """
     rna = dict({'prognm':'pypit.py', 'redname':'filelist.red', 'spectrograph':'hamspec', 'masterdir':'MasterFrames', 'plotsdir':'Plots', 'scidir':'Science', 'ncpus':-1, 'nsubpix':5, 'calcheck':False, 'qcontrol':True, 'preponly':False, 'stopcheck':False, 'use_idname':False})
     mas = dict({'use': False, 'setup': '', 'loaded': [], 'setup_file': ''})
-    red = dict({'locations':None, 'nlcorr':False, 'trim':True, 'badpix':True, 'usebias':'bias', 'usetrace':'trace', 'usearc':'arc', 'usewave':'wave', 'useflat':'pixflat', 'subdark':False, 'flatfield':True, 'FlatMethod':'SpatialFit', 'FlatParams':[0], 'bgsubtraction':True, 'arcmatch':2.0, 'flatmatch':2.0, 'calibrate':True, 'fluxcalibrate':True, 'extraction':'2D', 'oscanMethod':'polynomial', 'oscanParams':[1], 'heliocorr':True, 'pixelsize':2.5})
+    red = dict({'locations':None, 'nlcorr':False, 'trim':True, 'badpix':True, 'usebias':'bias', 'usetrace':'trace', 'usearc':'arc', 'usewave':'wave', 'useflat':'pixflat', 'subdark':False, 'flatfield':True, 'FlatMethod':'SpatialFit', 'FlatParams':[0],
+                'bgsubtraction': {'perform': True, 'method': 'polyscan', 'bspline_keywds': {'everyn': 30}},
+                'arcmatch':2.0, 'flatmatch':2.0, 'calibrate':True, 'fluxcalibrate':True, 'extraction':'2D', 'oscanMethod':'polynomial', 'oscanParams':[1], 'heliocorr':True, 'pixelsize':2.5,
+                'flexure': {'spec': None, 'max_shift': 20, 'archive_spec': None}})
     csq = dict({'atol':1.0E-3, 'xtol':1.0E-10, 'gtol':1.0E-10, 'ftol':1.0E-10, 'fstep':2.0})
     opa = dict({'verbose':2, 'sorted':None, 'plots':True, 'overwrite':False})
     sci = dict({'load':dict({'extracted':False}),
-                'extraction':dict({'method':'2D', 'profile':'gaussian', 'centorder':1, 'widthorder':1, 'function':'legendre', 'pcacent':[1,0], 'pcawidth':[1,0], 'bintrace':10})
+                'extraction':dict({'method':'2D', 'profile': 'gaussian', 'centorder':1, 'widthorder':1, 'function':'legendre', 'pcacent':[1,0], 'pcawidth':[1,0], 'bintrace':10})
                 })
-    pfl = dict({'comb':dict({'method':None, 'rej_cosmicray':50.0, 'rej_lowhigh':[0,0], 'rej_level':[3.0,3.0], 'sat_pix':'reject', 'set_allrej':'median'}) })
+    pfl = dict({'comb':dict({'method':None, 'rej_cosmicray':50.0, 'rej_lowhigh':[0,0], 'rej_level':[3.0,3.0], 'sat_pix':'reject', 'set_allrej':'median'}),
+                'norm':dict({'recnorm': True})},)
     bfl = dict({'comb':dict({'method':None, 'rej_cosmicray':50.0, 'rej_lowhigh':[0,0], 'rej_level':[3.0,3.0], 'sat_pix':'reject', 'set_allrej':'median'}) })
     trc = dict({'comb':dict({'method':'weightmean', 'rej_cosmicray':50.0, 'rej_lowhigh':[0,0], 'rej_level':[3.0,3.0], 'sat_pix':'reject', 'set_allrej':'maxnonsat'}),
                 'disp':dict({'window':None, 'direction':None}),
-                'orders':dict({'tilts':'trace', 'pcatilt':[2,1,0], 'tiltorder':1, 'tiltdisporder':2, 'function':'polynomial', 'polyorder':2, 'diffpolyorder':2, 'fracignore':0.6, 'sigdetect':3.0, 'pca':[3,2,1,0,0,0], 'pcxpos':3, 'pcxneg':3}) })
+                'orders': dict({'tilts':'trace', 'pcatilt':[2,1,0], 'tiltorder':1, 'tiltdisporder':2, 'function':'polynomial', 'polyorder':2, 'diffpolyorder':2, 'fracignore':0.6, 'sigdetect':3.0, 'pca':[3,2,1,0,0,0], 'pcxpos':3, 'pcxneg':3,
+                                'sng_slit': []}) })
     arc = dict({'comb':dict({'method':'weightmean', 'rej_cosmicray':50.0, 'rej_lowhigh':[0,0], 'rej_level':[3.0,3.0], 'sat_pix':'reject', 'set_allrej':'maxnonsat'}),
                 'extract':dict({'binby':1.0}),
                 'load':dict({'extracted':False, 'calibrated':False}),
-                'calibrate':dict({'cwpolyorder':2, 'threshold':3.0, 'polyorderpri':4, 'polyordersec':8, 'pcapri':[4,2,2,0], 'pcasec':[5,4,3,2,1,1], 'detection':6.0, 'method':'simple', 'nfitpix':7, 'idfile':'wave_ThAr_3100-11000.npy', 'linelist':'arclist.ThAr', 'numsearch':20, 'sigmacut':2.0}),
+                'calibrate': dict({'cwpolyorder':2, 'threshold':3.0, 'polyorderpri':4, 'polyordersec':8, 'pcapri':[4,2,2,0], 'pcasec':[5,4,3,2,1,1], 'detection':6.0, 'method':'simple', 'nfitpix':7, 'idfile':'wave_ThAr_3100-11000.npy', 'linelist':'arclist.ThAr', 'numsearch':20, 'sigmacut':2.0,
+                    'id_pix': [0., 0., 0., 0., 0.], 'id_wave': [0., 0., 0., 0., 0.]}),
                 })
     bia = dict({'comb':dict({'method':'mean', 'rej_cosmicray':20.0, 'rej_lowhigh':[0,0], 'rej_level':[3.0,3.0], 'sat_pix':'reject', 'set_allrej':'median'}) })
     drk = dict({})
-    argflag = dict({'run':rna, 'reduce':red, 'masters': mas, 'science':sci, 'pixflat':pfl, 'blzflat':bfl, 'trace':trc, 'arc':arc, 'bias':bia, 'dark':drk, 'chisq':csq, 'out':opa})
+    argflag = dict({'run':rna, 'reduce':red, 'masters':mas, 'science':sci, 'pixflat':pfl, 'blzflat':bfl, 'trace':trc, 'arc':arc, 'bias':bia, 'dark':drk, 'chisq':csq, 'out':opa})
     return argflag
 
 
@@ -114,9 +120,9 @@ def optarg(argflag, argv, pypname):
     opt, arg = None, None
     try:
         opt, arg = getopt.getopt(argv[1:], 'hmc:v:', ['help',
-                                                     'use_masters',
-                                                     'cpus',
-                                                     'verbose',
+                                                      'use_masters',
+                                                      'cpus',
+                                                      'verbose',
                                                      ])
     except getopt.GetoptError, err:
         msgs.error(err.msg)
@@ -125,8 +131,7 @@ def optarg(argflag, argv, pypname):
         if o in ('-h', '--help'): msgs.usage(None)
         elif o in ('-c', '--cpus'): argflag['run']['ncpus'] = a
         elif o in ('-v', '--verbose'): argflag['out']['verbose'] = int(a)
-    for a in arg:
-        if a in ('--use_masters'): argflag['masters']['use'] = True
+        elif o in ('-m', '--use_masters'): argflag['masters']['use'] = True
 
     #######################
     # Now do some checks: #
@@ -280,9 +285,13 @@ def set_params(lines, indict, setstr=""):
                 except ValueError:
                     msgs.error("keyword oscansec must contain an integer suffix")
                 indict[linspl[0]][didx][linspl[1]] = load_sections(linspl[2], strtxt=linspl[1])
+            elif linspl[1][:6] == 'numamp':
+                indict[linspl[0]][didx]['numamplifiers'] = int(linspl[2])
+                indict[linspl[0]][didx]['gain'] = [indict['det'][didx]['gain'][0]]*int(linspl[2])
+                indict[linspl[0]][didx]['ronoise'] = [indict['det'][didx]['ronoise'][0]]*int(linspl[2])
             else:  # Read value
                 indict[linspl[0]][didx][linspl[1]] = set_params_wtype(indict[linspl[0]][didx][linspl[1]], linspl[2], lines=tline,setstr=setstr)
-        else: 
+        else:
             msgs.error(setstr + "Settings contains bad line (arg 1):"+msgs.newline()+lines[i].split('#')[0].strip())
     return indict
 
@@ -435,9 +444,8 @@ def check_argflag(argflag):
                        "'trace', 'blzflat', 'science'" + msgs.newline() +
                        "or the name of a fits file.")
     # Check that the sorted data will be output in VOTable format:
-    osrtspl = argflag['out']['sorted'].split('.')
-    if len(osrtspl) != 1:
-        if osrtspl[-1] != 'xml': msgs.error("The output format for 'sorted' is .xml, not .{0:s}".format(osrtspl[-1]))
+    if argflag['out']['sorted'].find('.') > 0:
+        msgs.error("The output format for 'sorted' is extensionless")
     return
 
 
@@ -469,7 +477,7 @@ def load_spect(progname, specname, spect=None, lines=None):
     def initialise():
         msc = dict({'ndet': 0, 'latitude': 0.0, 'longitude': 0.0, 'elevation': 0.0, 'minexp': 0., 'reduction': 'ARMLSD', 'camera': 'UNKNWN'})
         # det starts as a dict but becomes a list of dicts in set_params
-        ddet = dict({'xgap': 0.0, 'ygap': 0.0, 'ysize': 1.0, 'darkcurr': 0.0, 'ronoise': 1.0, 'gain': 1.0, 'saturation': 65536.0, 'nonlinear': 1.0, 'numamplifiers': 1, 'suffix': ""})
+        ddet = dict({'xgap': 0.0, 'ygap': 0.0, 'ysize': 1.0, 'darkcurr': 0.0, 'ronoise': [1.0], 'gain': [1.0], 'saturation': 65536.0, 'nonlinear': 1.0, 'numamplifiers': 1, 'suffix': ""})
         #
         chk = dict({})
         stf = dict({'science': [], 'standard': [], 'bias': [], 'pixflat': [], 'blzflat': [], 'arc': [], 'trace': [], 'dark': [], 'readnoise': []})
@@ -547,6 +555,7 @@ def load_headers(argflag, spect, datlines):
             kchk  = '.'.join(ch.split('.')[1:])
             frhd  = whddict['{0:02d}'.format(tfrhd)]
             if spect['check'][ch] != str(headarr[frhd][kchk]).strip():
+                #set_trace()
                 #print ch, frhd, kchk
                 #print spect['check'][ch], str(headarr[frhd][kchk]).strip()
                 msgs.error("The following file:"+msgs.newline()+datlines[i]+msgs.newline()+"is not taken with the settings.{0:s} detector".format(argflag['run']['spectrograph'])+msgs.newline()+"Remove this file, or specify a different settings file.")
@@ -661,7 +670,7 @@ def load_frames(slf, fitsdict, ind, det, frametype='<None>', msbias=None,
     msgs.work("Implement multiprocessing here (better -- at the moment it's slower than not) to speed up data reading")
     for i in range(np.size(ind)):
         # Instrument specific read
-        if slf._argflag['run']['spectrograph'] in ['lris_blue','lris_red']:
+        if slf._argflag['run']['spectrograph'] in ['lris_blue', 'lris_red']:
             temp, head0, _ = arlris.read_lris(fitsdict['directory'][ind[i]]+fitsdict['filename'][ind[i]], det=det)
         else:
             temp = pyfits.getdata(fitsdict['directory'][ind[i]]+fitsdict['filename'][ind[i]], slf._spect['fits']['dataext'])
@@ -770,7 +779,6 @@ def load_master(name, exten=0, frametype='<None>'):
     -------
     frame : ndarray
       The data from the master calibration frame
-    head : fits header (dict-like)
     """
     if frametype is None:
         msgs.info("Loading a pre-existing master calibration frame")
@@ -784,13 +792,18 @@ def load_master(name, exten=0, frametype='<None>'):
         return data, head
         #return np.array(infile[0].data, dtype=np.float)
     else:
+        from linetools import utils as ltu
         msgs.info("Loading Master {0:s} frame:".format(frametype)+msgs.newline()+name)
-        # Load
-        hdu = pyfits.open(name)
-        data = hdu[exten].data.astype(np.float)
-        head = hdu[0].header
-        #
-        return data, head
+        if frametype == 'wv_calib':
+            ldict = ltu.loadjson(name)
+            return ldict
+        else:
+            # Load
+            hdu = pyfits.open(name)
+            head = hdu[0].header
+            data = hdu[exten].data.astype(np.float)
+            return data, head
+        #return np.array(pyfits.getdata(name, 0), dtype=np.float)
 
 
 def load_ordloc(fname):

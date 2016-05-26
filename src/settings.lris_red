@@ -39,13 +39,15 @@ det01 xgap 0.0                        # Gap between the square detector pixels (
 det01 ygap 0.0                        # Gap between the square detector pixels (expressed as a fraction of the y pixel size -- x is predominantly the dispersion axis)
 det01 ysize 1.0                       # The size of a pixel in the y-direction as a multiple of the x pixel size (i.e. xsize = 1.0 -- x is predominantly the dispersion axis)
 det01 darkcurr 0.0                    # Dark current (e-/hour)
-det01 ronoise 4.64                    # Average of values on 4 detectors; Read-out noise (e-)
-det01 gain 1.0                        # Gain (e-/ADU) values input in arlris.py (instead of arproc.py where they are usually read in)
 det01 saturation 65535.0              # The detector Saturation level
 det01 nonlinear 0.76                  # Percentage of detector range which is linear (i.e. everything above nonlinear*saturation will be flagged as saturated)
-## PULL THE FOLLOWING FROM THE HEADER WHEN POSSIBLE (FOR BINNING ESPECIALLY)##
 det01 numamplifiers 2                 # Number of amplifiers
+det01 gain 1.255,1.18                 # Gain (e-/ADU) values for the 2 amplifers
+det01 ronoise 4.64,4.76               # RN (e-) for the 2 amplifers
+## PULL THE FOLLOWING FROM THE HEADER WHEN POSSIBLE (FOR BINNING ESPECIALLY)##
 det02 numamplifiers 2                 # Number of amplifiers
+det02 gain 1.191,1.162                # Gain (e-/ADU) values for the 2 amplifers
+det02 ronoise 4.54,4.62               # RN (e-) for the 2 amplifers
 det01 suffix _01red                   # Suffix to be appended to all saved calibration and extraction frames
 det02 suffix _02red                   # Suffix to be appended to all saved calibration and extraction frames
 
@@ -58,6 +60,7 @@ check 04.NAXIS 2                       # THIS IS A MUST! It performs a standard 
 check 05.NAXIS 2                       # THIS IS A MUST! It performs a standard check to make sure the data are 2D.
 check 02.CCDGEOM LBNL_Thick_High-Resistivity   # Check the CCD name (replace any spaces with underscores)
 check 02.CCDNAME 19-3                  # Check the CCD name (replace any spaces with underscores)
+check 04.CCDNAME 19-2                  # Check the CCD name (replace any spaces with underscores)
 
 ### Keyword Identifiers
 keyword target 01.TARGNAME             # Header keyword for the name given by the observer to a given frame
@@ -154,8 +157,8 @@ pixflat idname OBJECT               # Header key value of flat frame for header 
 pixflat number 5                    # Number of flat frames to use
 pixflat canbe None                  # If there are frames that will be pixflat ***in addition to other frame types***, include the other frame types here.
 pixflat lscomb False                # Combine a long and short flat
-pixflat check condition1 hatch=open   # Required for dome flats
-pixflat check condition2 exptime<60   # Avoid stars
+pixflat check condition1 hatch=open   # Required for blaze flats
+pixflat check condition2 exptime<30   # Avoid stars
 pixflat check condition3 lampstat09=on|lampstat10=on|lampstat11=on|lampstat12=on
 pixflat match binning ''             		# Match the shape of standard and science frames
 pixflat match decker ''             # Check the same decker as the science frame was used
@@ -179,9 +182,9 @@ trace number 0                    # Number of flat frames to use
 trace canbe None                  # If there are frames that will be pixflat ***in addition to other frame types***, include the other frame types here.
 trace lscomb False                # Combine a long and short flat
 # Blue side should be using twilight sky
-trace check condition1 hatch=open # Required for trace flats
+trace check condition1 hatch=open # Required for trace flats (Dome)
 trace check condition2 exptime<30 # Calibration
-trace check condition3 lampstat09=on|lampstat10=on|lampstat11=on|lampstat12=on  # Dome Lamps
+trace check condition3 lampstat09=on|lampstat10=on|lampstat11=on|lampstat12=on # Dome lamps
 trace match binning ''                 # Match the shape of trace with science
 #trace match naxis0 =0             # Match the shape of flats with science
 #trace match naxis1 =0             # Match the shape of flats with science

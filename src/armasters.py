@@ -3,6 +3,7 @@ import astropy.io.fits as pyfits
 import armsgs
 import arsave
 
+
 # Logging
 msgs = armsgs.get_logger()
 
@@ -55,10 +56,8 @@ def master_name(mdir, ftype, setup):
     mdir : str
       Master directory
     ftype
-
     Returns
     -------
-
     """
     name_dict = dict(bias='{:s}/MasterBias_{:s}.fits'.format(mdir,setup),
                      badpix='{:s}/MasterBadPix_{:s}.fits'.format(mdir,setup),
@@ -66,6 +65,7 @@ def master_name(mdir, ftype, setup):
                      normpixflat='{:s}/MasterFlatField_{:s}.fits'.format(mdir,setup),
                      arc='{:s}/MasterArc_{:s}.fits'.format(mdir,setup),
                      wave='{:s}/MasterWave_{:s}.fits'.format(mdir,setup),
+                     wave_soln='{:s}/MasterWaveSoln_{:s}.json'.format(mdir,setup),
                      tilts='{:s}/MasterTilts_{:s}.fits'.format(mdir,setup),
                      )
     return name_dict[ftype]
@@ -78,17 +78,13 @@ def load_masters(slf, det, setup):
     slf
     det
     setup
-
     Returns
     -------
-
     """
-
     def load_master(file, exten=0):
         hdu = pyfits.open(file)
         data = hdu[exten].data
         return data
-
     # Bias
     slf._msbias[det-1] = load_master(master_name('bias', setup))
     # Bad Pixel
@@ -110,16 +106,16 @@ def load_masters(slf, det, setup):
 
 def save_masters(slf, det, setup):
     """ Save Master Frames
-
     Parameters
     ----------
     slf
     setup
-
     Returns
     -------
-
     """
+    from linetools import utils as ltu
+    import io, json
+
     # MasterFrame directory
     mdir = slf._argflag['run']['masterdir']
     # Bias
@@ -152,11 +148,17 @@ def save_masters(slf, det, setup):
                            filename=master_name(mdir, 'arc', setup),
                            frametype='arc', keywds=dict(transp=slf._transpose))
     if 'wave'+slf._argflag['masters']['setup'] not in slf._argflag['masters']['loaded']:
+        # Wavelength image
         arsave.save_master(slf, slf._mswave[det-1],
                            filename=master_name(mdir, 'wave', setup),
                            frametype='wave')
+        # Wavelength fit
+        gddict = ltu.jsonify(slf._wvcalib[det-1])
+        json_file=master_name(mdir, 'wave_soln', setup)
+        with io.open(json_file, 'w', encoding='utf-8') as f:
+            f.write(unicode(json.dumps(gddict, sort_keys=True, indent=4,
+                                       separators=(',', ': '))))
     if 'tilts'+slf._argflag['masters']['setup'] not in slf._argflag['masters']['loaded']:
         arsave.save_master(slf, slf._tilts[det-1],
                            filename=master_name(mdir, 'tilts', setup),
                            frametype='tilts')
-

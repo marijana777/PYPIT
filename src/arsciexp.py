@@ -11,6 +11,7 @@ import artrace
 import arload
 import arcomb
 import arflux
+import arlris
 import armasters
 import armsgs
 import arproc
@@ -46,7 +47,6 @@ class ScienceExposure:
         if self._argflag['reduce']['usebias'] == 'bias': self._idx_bias = spect['bias']['index'][snum]
         elif self._argflag['reduce']['usebias'] == 'dark':  self._idx_bias = spect['dark']['index'][snum]
         else: self._idx_bias = []
-        #
         if self._argflag['reduce']['usetrace'] == 'trace': self._idx_trace = self._spect['trace']['index'][snum]
         elif self._argflag['reduce']['usetrace'] == 'blzflat': self._idx_trace = self._spect['blzflat']['index'][snum]
         else: self._idx_trace = []
@@ -100,7 +100,8 @@ class ScienceExposure:
         self._mspixflat_name = [None for all in xrange(ndet)]  # Master Pixel Flat Name
         # Initialize the science, variance, and background frames
         self._sciframe = [None for all in xrange(ndet)]
-        self._varframe = [None for all in xrange(ndet)]
+        self._rawvarframe = [None for all in xrange(ndet)]    # Variance based on detected counts + RN
+        self._modelvarframe = [None for all in xrange(ndet)]  # Variance from sky and object models
         self._bgframe = [None for all in xrange(ndet)]
         self._scimask = [None for all in xrange(ndet)]        # Mask (1=Bad pix; 2=CR)
         self._scitrace = [None for all in xrange(ndet)]
@@ -141,12 +142,14 @@ class ScienceExposure:
     # Reduction procedures
     ###################################
 
-    def BadPixelMask(self, det):
+    def BadPixelMask(self, fitsdict, det):
         """
         Generate Bad Pixel Mask for a given detector
 
         Parameters
         ----------
+        fitsdict : dict
+          Contains relevant information from fits header files
         det : int
           Index of the detector
 
@@ -155,7 +158,7 @@ class ScienceExposure:
         boolean : bool
           Should other ScienceExposure classes be updated?
         """
-        if self._argflag['reduce']['badpix']:
+        if self._argflag['reduce']['badpix'] == 'bias':
             if self._argflag['masters']['use']:
                 # Attempt to load the Master Frame
                 bpix_name = armasters.master_name(self._argflag['run']['masterdir'],
@@ -177,8 +180,12 @@ class ScienceExposure:
                 # Load the Bias frames
                 bpix = arproc.badpix(self, det, self.GetMasterFrame('bias', det))
         else:
-            msgs.info("Not preparing a bad pixel mask")
-            return False
+            # Instrument dependent
+            if self._argflag['run']['spectrograph'] in ['lris_red']:
+                bpix = arlris.bpm(self, 'red', fitsdict, det)
+            else:
+                msgs.info("Not preparing a bad pixel mask")
+                return False
         self.SetFrame(self._bpix, bpix, det)
         del bpix
         return True
@@ -260,7 +267,6 @@ class ScienceExposure:
             msgs.info("Not transposing")
         # Set the number of spectral and spatial pixels
         self._nspec[det-1], self._nspat[det-1] = self._msarc[det-1].shape
-        #return fitsdict
 
     def GetPixelLocations(self, det):
         """
@@ -417,17 +423,16 @@ class ScienceExposure:
         del msbias
         return True
 
+    '''
     def MasterRN(self, fitsdict, det):
         """
         Generate Master ReadNoise frame for a given detector
-
         Parameters
         ----------
         fitsdict : dict
           Contains relevant information from fits header files
         det : int
           Index of the detector
-
         Returns
         -------
         boolean : bool
@@ -449,6 +454,7 @@ class ScienceExposure:
         self.SetMasterFrame(msrn, "readnoise", det)
         del msrn
         return True
+    '''
 
     def MasterFlatField(self, fitsdict, det):
         """
@@ -519,6 +525,8 @@ class ScienceExposure:
                         mspixflat = arcomb.comb_frames(frames, det, spect=self._spect, frametype='pixel flat',
                                                        **self._argflag['pixflat']['comb'])
                     del frames
+                    # Apply gain (instead of ampsec scale)
+                    mspixflat *= arproc.gain_frame(self, det)
                     # Normalize the flat field
                     mspixflatnrm, msblaze = arproc.flatnorm(self, det, mspixflat, overpix=0, plotdesc="Blaze function")
                     self.SetFrame(self._msblaze, msblaze, det)
@@ -615,6 +623,7 @@ class ScienceExposure:
         del mstrace
         return True
 
+
     def MasterWave(self, fitsdict, sc, det):
         """
         Generate Master Wave frame for a given detector
@@ -647,6 +656,9 @@ class ScienceExposure:
                     msgs.warn("No MasterWave frame found {:s}".format(mswave_name))
                 else:
                     self._argflag['masters']['loaded'].append('wave'+self._argflag['masters']['setup'])
+                    mswv_soln_name = armasters.master_name(self._argflag['run']['masterdir'],
+                                                    'wave_soln', self._argflag['masters']['setup'])
+                    wv_calib = arload.load_master(mswv_soln_name, frametype="wv_calib")
             if 'wave'+self._argflag['masters']['setup'] not in self._argflag['masters']['loaded']:
                 # Setup arc parameters (e.g. linelist)
                 arcparam = ararc.setup_param(self, sc, det, fitsdict)
@@ -654,15 +666,16 @@ class ScienceExposure:
                 ###############
                 # Extract arc and identify lines
                 wv_calib = ararc.simple_calib(self, det)
-                self.SetFrame(self._wvcalib, wv_calib, det)
                 #
                 msgs.info("Preparing a master wave frame")
-                mswave = arutils.func_val(self._wvcalib[det-1]['fitc'], self._tilts[det-1], self._wvcalib[det-1]['function'], minv=self._wvcalib[det-1]['fmin'], maxv=self._wvcalib[det-1]['fmax'])
+                mswave = arutils.func_val(wv_calib['fitc'], self._tilts[det-1], wv_calib['function'], minv=wv_calib['fmin'], maxv=wv_calib['fmax'])
         else: # It must be the name of a file the user wishes to load
             mswave_name = self._argflag['run']['masterdir']+'/'+self._argflag['reduce']['usewave']
             mswave, head = arload.load_master(mswave_name, frametype=None)
         # Set and then delete the Master Arc frame
         self.SetMasterFrame(mswave, "wave", det)
+        if wv_calib is not None:
+            self.SetFrame(self._wvcalib, wv_calib, det)
         del mswave
         return True
 
@@ -794,7 +807,6 @@ class ScienceExposure:
             if ftype == "arc": return self._msarc[det].copy()
             elif ftype == "wave": return self._mswave[det].copy()
             elif ftype == "bias": return self._msbias[det].copy()
-            elif ftype == "readnoise": return self._msrn[det].copy()
             elif ftype == "normpixflat": return self._mspixflatnrm[det].copy()
             elif ftype == "pixflat": return self._mspixflat[det].copy()
             elif ftype == "trace": return self._mstrace[det].copy()
@@ -807,7 +819,6 @@ class ScienceExposure:
             if ftype == "arc": return self._msarc[det]
             elif ftype == "wave": return self._mswave[det]
             elif ftype == "bias": return self._msbias[det]
-            elif ftype == "readnoise": return self._msrn[det]
             elif ftype == "normpixflat": return self._mspixflatnrm[det]
             elif ftype == "pixflat": return self._mspixflat[det]
             elif ftype == "trace": return self._mstrace[det]

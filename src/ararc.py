@@ -60,7 +60,10 @@ def detect_lines(slf, det, msarc, censpec=None, MK_SATMASK=False):
     # Extract a rough spectrum of the arc in each order
     msgs.info("Detecting lines")
     msgs.info("Extracting an approximate arc spectrum at the centre of the chip")
-    ordcen = slf.GetFrame(slf._pixcen, det)
+    if msgs._debug['flexure']:
+        ordcen = slf._pixcen
+    else:
+        ordcen = slf.GetFrame(slf._pixcen, det)
     if censpec is None:
         #pixcen = np.arange(msarc.shape[slf._dispaxis], dtype=np.int)
         #ordcen = (msarc.shape[1-slf._dispaxis]/2)*np.ones(msarc.shape[slf._dispaxis],dtype=np.int)
@@ -74,15 +77,15 @@ def detect_lines(slf, det, msarc, censpec=None, MK_SATMASK=False):
         om2 = ordcen-2
         censpec = (msarc[:,ordcen]+msarc[:,op1]+msarc[:,op2]+msarc[:,om1]+msarc[:,om2])/5.0
     # Generate a saturation mask
-    ordwid = 0.5*np.abs(slf._lordloc[det-1] - slf._rordloc[det-1])
     if MK_SATMASK:
+        ordwid = 0.5*np.abs(slf._lordloc[det-1] - slf._rordloc[det-1])
         msgs.info("Generating a mask of arc line saturation streaks")
         satmask = arcyarc.saturation_mask(msarc, slf._nonlinear[det-1])
         satsnd = arcyarc.order_saturation(satmask, ordcen, (ordwid+0.5).astype(np.int), slf._dispaxis)
     else:
         satsnd = np.zeros_like(ordcen)
     # Detect the location of the arc lines
-    msgs.info("Detecting the strongest, nonsaturated arc lines")
+    msgs.info("Detecting the strongest, nonsaturated lines")
     #####
     # Old algorithm for arc line detection
 #   arcdet = arcyarc.detections_allorders(censpec, satsnd)
@@ -157,7 +160,6 @@ def setup_param(slf, sc, det, fitsdict):
         func='legendre',     # Function for fitting
         n_first=1,           # Order of polynomial for first fit
         n_final=4,           # Order of polynomial for final fit
-        saturated=1e9,       # Saturation limit
         nsig_rej=2.,         # Number of sigma for rejection
         nsig_rej_final=3.0,  # Number of sigma for rejection (final fit)
         Nstrong=13)          # Number of lines for auto-analysis
@@ -201,23 +203,29 @@ def setup_param(slf, sc, det, fitsdict):
             arcparam['b1']= 4.54698031e-04 
             arcparam['b2']= -6.86414978e-09
             arcparam['wvmnx'][1] = 6000.
+        elif disperser == '400/3400':
+            arcparam['n_first']=2 # Too much curvature for 1st order
+            arcparam['disp']=1.02
+            #arcparam['b1']= 1./arcparam['disp']/slf._msarc[det-1].shape[0]
+            arcparam['b1']= 2.72694493e-04
+            arcparam['b2']= -5.30717321e-09
+            arcparam['wvmnx'][1] = 6000.
+        else:
+            msgs.error('Not ready for this disperser {:s}!'.format(disperser))
     elif sname=='lris_red':
-        lamps = ['HgI','ArI','NeI','XeI','KrI']
-        #lamps = ['HgI','NeI','ArI']
+        lamps = ['ArI','NeI','HgI','KrI','XeI']  # Should set according to the lamps that were on
         if disperser == '600/7500':
             arcparam['n_first']=2 # Too much curvature for 1st order
             arcparam['disp']=0.80 # Ang per pixel (unbinned)
             arcparam['b1']= 1./arcparam['disp']/slf._msarc[det-1].shape[0]
 #            arcparam['b2']= -6.86414978e-09
-            arcparam['wvmnx'][0] = 5600.
-            arcparam['wvmnx'][1] = 8500.
-            arcparam['saturated']=60000. # Saturation limit
+            arcparam['wvmnx'][1] = 9000.
         elif disperser == '900/5500':
             arcparam['n_first']=2 # Too much curvature for 1st order
             arcparam['disp']=0.53 # Ang per pixel (unbinned)
             arcparam['b1']= 1./arcparam['disp']/slf._msarc[det-1].shape[0]
 #            arcparam['b2']= -6.86414978e-09
-            arcparam['wvmnx'][1] = 5500.
+            arcparam['wvmnx'][1] = 7000.
 
 
 
@@ -235,7 +243,6 @@ def setup_param(slf, sc, det, fitsdict):
     #    format='fixed_width_no_header', comment='#', #data_start=1, 
     #    names=('wave', 'flag', 'ID'),
     #    col_starts=(0,12,14), col_ends=(11,13,24))
-
     # Binning
     if fitsdict['binning'][idx[0]] in ['2,2']:
         arcparam['disp'] *= 2
@@ -257,8 +264,6 @@ def simple_calib(slf, det, get_poly=False):
     final_fit : dict
       Dict of fit info
     """
-    # Parameters (just for convenience)
-    aparm = slf._arcparam[det-1]
 
     # Extract the arc
     msgs.work("Detecting lines..")
@@ -268,70 +273,106 @@ def simple_calib(slf, det, get_poly=False):
     tcent = tcent[w]
     tampl = tampl[w]
     msgs.info('Detected {:d} lines in the arc spectrum.'.format(len(w[0])))
-    unsat = tampl < aparm['saturated']
-    tcent = tcent[unsat]
-    tampl = tampl[unsat]
-    msgs.info('{:d} unsaturated lines in the arc spectrum.'.format(np.sum(unsat)))
+
+    # Parameters (just for convenience)
+    aparm = slf._arcparam[det-1]
 
     # Read Arc linelist
     llist = aparm['llist']
 
-    # Generate dpix pairs
-    nlist = len(llist)
-    dpix_list = np.zeros((nlist,nlist))
-    for kk,row in enumerate(llist):
-        #dpix_list[kk,:] = (np.array(row['wave'] - llist['wave']))/disp
-        dpix_list[kk,:] = slf._msarc[det-1].shape[0]*(aparm['b1']*(np.array(row['wave'] - llist['wave'])) + aparm['b2']*np.array(row['wave']**2 - llist['wave']**2) )
+    # IDs were input by hand
+    if slf._argflag['arc']['calibrate']['id_pix'][0] > 0.:
+        # Check that there are at least 5 values
+        pixels = np.array(slf._argflag['arc']['calibrate']['id_pix'])
+        if np.sum(pixels > 0.) < 5:
+            msgs.error("Need to give at least 5 pixel values!")
+        #
+        msgs.info("Using input lines to seed the wavelength solution")
+        # Match input lines to observed spectrum
+        nid = len(slf._argflag['arc']['calibrate']['id_pix'])
+        idx_str = np.ones(nid).astype(int)
+        ids = np.zeros(nid)
+        idsion = np.array(['     ']*nid)
+        gd_str = np.arange(nid).astype(int)
+        for jj,pix in enumerate(slf._argflag['arc']['calibrate']['id_pix']):
+            diff = np.abs(tcent-pix)
+            if np.min(diff) > 1.:
+                msgs.error("No match with input pixel {:g}!".format(pix))
+            else:
+                imn = np.argmin(diff)
+            # Set
+            idx_str[jj] = imn
+            # Take wavelength from linelist instead of input value
+            wdiff = np.abs(llist['wave']-slf._argflag['arc']['calibrate']['id_wave'][jj])
+            imnw = np.argmin(wdiff)
+            if wdiff[imnw] > 0.015:  # Arbitrary tolerance
+                msgs.error("Input id_wave={:g} is not in the linelist.  Fix".format(
+                        slf._argflag['arc']['calibrate']['id_wave'][jj]))
+            else:
+                ids[jj] = llist['wave'][imnw]
+                idsion[jj] = llist['Ion'][imnw]
+                msgs.info("Identifying arc line: {:s} {:g}".format(idsion[jj],ids[jj]))
+    else:
+        # Generate dpix pairs
+        msgs.info("Using pair algorithm for wavelength solution")
+        nlist = len(llist)
+        dpix_list = np.zeros((nlist,nlist))
+        for kk,row in enumerate(llist):
+            #dpix_list[kk,:] = (np.array(row['wave'] - llist['wave']))/disp
+            dpix_list[kk,:] = slf._msarc[det-1].shape[0]*(aparm['b1']*(np.array(row['wave'] - llist['wave'])) + aparm['b2']*np.array(row['wave']**2 - llist['wave']**2) )
 
-    # Lambda pairs for the strongest N lines
-    srt = np.argsort(tampl)
-    idx_str = srt[-aparm['Nstrong']:]
-    idx_str.sort()
-    dpix_obs = np.zeros((aparm['Nstrong'],aparm['Nstrong']))
-    for kk,idx in enumerate(idx_str):
-        dpix_obs[kk,:] = np.array(tcent[idx] - tcent[idx_str])
+        # Lambda pairs for the strongest N lines
+        srt = np.argsort(tampl)
+        idx_str = srt[-aparm['Nstrong']:]
+        idx_str.sort()
+        dpix_obs = np.zeros((aparm['Nstrong'],aparm['Nstrong']))
+        for kk,idx in enumerate(idx_str):
+            dpix_obs[kk,:] = np.array(tcent[idx] - tcent[idx_str])
 
-    # Match up (ugly loops)
-    ids = np.zeros(aparm['Nstrong'])
-    idsion = np.array(['     ']*aparm['Nstrong'])
-    for kk in range(aparm['Nstrong']):
-        med_off = np.zeros(nlist)
-        for ss in range(nlist):
-            dpix = dpix_list[ss]
-            min_off = []
-            for jj in range(aparm['Nstrong']):
-                min_off.append(np.min(np.abs(dpix_obs[kk,jj]-dpix)))
-            med_off[ss] = np.median(min_off)
-        # Set by minimum
-        idm = np.argmin(med_off)
-        ids[kk] = llist['wave'][idm]
-        idsion[kk] = llist['Ion'][idm]
+        # Match up (ugly loops)
+        ids = np.zeros(aparm['Nstrong'])
+        idsion = np.array(['     ']*aparm['Nstrong'])
+        for kk in range(aparm['Nstrong']):
+            med_off = np.zeros(nlist)
+            for ss in range(nlist):
+                dpix = dpix_list[ss]
+                min_off = []
+                for jj in range(aparm['Nstrong']):
+                    min_off.append(np.min(np.abs(dpix_obs[kk,jj]-dpix)))
+                med_off[ss] = np.median(min_off)
+            # Set by minimum
+            idm = np.argmin(med_off)
+            ids[kk] = llist['wave'][idm]
+            idsion[kk] = llist['Ion'][idm]
 
-    # Calculate disp of the strong lines
-    disp_str = np.zeros(aparm['Nstrong'])
-    for kk in range(aparm['Nstrong']):
-        disp_val = (ids[kk]-ids)/(tcent[idx_str[kk]]-tcent[idx_str])
-        isf = np.isfinite(disp_val)
-        disp_str[kk] = np.median(disp_val[isf])
-    # Consider calculating the RMS with clipping
-    gd_str = np.where( np.abs(disp_str-aparm['disp'])/aparm['disp'] < aparm['disp_toler'])[0]
-    msgs.info('Found {:d} lines within the dispersion threshold'.format(len(gd_str)))
-    if len(gd_str) < 5:
-        print(disp_str, aparm['disp'])
-        debugger.set_trace()
-        msgs.error('Insufficient lines to auto-fit.')
+        # Calculate disp of the strong lines
+        disp_str = np.zeros(aparm['Nstrong'])
+        for kk in range(aparm['Nstrong']):
+            disp_val = (ids[kk]-ids)/(tcent[idx_str[kk]]-tcent[idx_str])
+            isf = np.isfinite(disp_val)
+            disp_str[kk] = np.median(disp_val[isf])
+        # Consider calculating the RMS with clipping
+        gd_str = np.where( np.abs(disp_str-aparm['disp'])/aparm['disp'] < aparm['disp_toler'])[0]
+        msgs.info('Found {:d} lines within the dispersion threshold'.format(len(gd_str)))
+        if len(gd_str) < 5:
+            if msgs._debug['arc']:
+                msgs.warn('You should probably try your best to ID lines now.')
+                debugger.set_trace()
+                debugger.xplot(yprep)
+            else:
+                msgs.error('Insufficient lines to auto-fit.')
 
     # Debug
     #debug=True
     if msgs._debug['arc']:
-        tmp = list(gd_str)
-        tmp.pop(1)
-        gd_str = np.array(tmp)
+        #tmp = list(gd_str)
+        #tmp.pop(1)
+        #gd_str = np.array(tmp)
+        #xdb.xpcol(tcent[idx_str[gd_str]],ids[gd_str])
+        #xdb.xplot(tcent[idx_str[gd_str]],ids[gd_str],scatter=True)
         debugger.set_trace()
-        debugger.xpcol(tcent[idx_str[gd_str]],ids[gd_str])
-        debugger.xplot(tcent[idx_str[gd_str]],ids[gd_str],scatter=True)
 
-    # Consider a cross-correlation here (as a double-check)
+    msgs.work('Cross correlate here?')
 
     # Setup for fitting
     ifit = idx_str[gd_str]
@@ -349,8 +390,7 @@ def simple_calib(slf, det, get_poly=False):
         #msgs.info('n_order={:d}'.format(n_order))
         # Fit with rejection
         xfit, yfit = tcent[ifit], all_ids[ifit]
-        mask, fit = arutils.robust_polyfit(xfit, yfit, n_order,
-            function=aparm['func'], sigma=aparm['nsig_rej'], minv=fmin, maxv=fmax)
+        mask, fit = arutils.robust_polyfit(xfit, yfit, n_order, function=aparm['func'], sigma=aparm['nsig_rej'], minv=fmin, maxv=fmax)
         # DEBUG
         if msgs._debug['arc']:
             debugger.xpcol(xfit,yfit)
@@ -364,16 +404,16 @@ def simple_calib(slf, det, get_poly=False):
             mn = np.min(np.abs(iwave-llist['wave']))
             if mn/aparm['disp'] < aparm['match_toler']:
                 imn = np.argmin(np.abs(iwave-llist['wave']))
-                if msgs._debug['arc']:
-                    print('Adding {:g} at {:g}'.format(llist['wave'][imn],tcent[ss]))
+                #if msgs._debug['arc']:
+                #    print('Adding {:g} at {:g}'.format(llist['wave'][imn],tcent[ss]))
                 # Update and append
                 all_ids[ss] = llist['wave'][imn]
                 all_idsion[ss] = llist['Ion'][imn]
                 ifit.append(ss)
         # Keep unique ones
         ifit = np.unique(np.array(ifit,dtype=int))
-        if msgs._debug['arc']:
-            debugger.set_trace()
+        #if msgs._debug['arc']:
+        #    debugger.set_trace()
         # Increment order
         if n_order < aparm['n_final']:
             n_order += 1
@@ -383,10 +423,8 @@ def simple_calib(slf, det, get_poly=False):
 
     # Final fit (originals can now be rejected)
     fmin, fmax = 0., 1. 
-    xfit, yfit = tcent[ifit]/slf._msarc[det-1].shape[0], all_ids[ifit]
-    mask, fit = arutils.robust_polyfit(xfit, yfit, n_order, 
-        function=aparm['func'], sigma=aparm['nsig_rej_final'],
-        minv=fmin, maxv=fmax)#, debug=True)
+    xfit, yfit = tcent[ifit]/(slf._msarc[det-1].shape[0]-1), all_ids[ifit]
+    mask, fit = arutils.robust_polyfit(xfit, yfit, n_order, function=aparm['func'], sigma=aparm['nsig_rej_final'], minv=fmin, maxv=fmax)#, debug=True)
     irej = np.where(mask==1)[0]
     if len(irej) > 0:
         xrej = xfit[irej]
@@ -410,8 +448,6 @@ def simple_calib(slf, det, get_poly=False):
         debugger.xpcol(xfit*msarc.shape[0], yfit)
         debugger.set_trace()
 
-        wave = arutils.func_val(fit, np.arange(msarc.shape[0]), 'legendre', 
-            minv=fmin, maxv=fmax)
         debugger.xplot(xfit, np.ones(len(xfit)), scatter=True,
             xtwo=np.arange(msarc.shape[0]),ytwo=yprep)
         debugger.xplot(xfit,yfit, scatter=True, xtwo=np.arange(msarc.shape[0]),
@@ -430,9 +466,10 @@ def simple_calib(slf, det, get_poly=False):
     # Pack up fit
     final_fit = dict(fitc=fit, function=aparm['func'], xfit=xfit, yfit=yfit,
         ions=ions, fmin=fmin, fmax=fmax, xnorm=float(slf._msarc[det-1].shape[0]),
-        xrej=xrej, yrej=yrej)
+        xrej=xrej, yrej=yrej, mask=mask, spec=yprep, nrej=aparm['nsig_rej_final'],
+                     shift=0.)
     # QA
-    arqa.arc_fit_qa(slf, final_fit, yprep)
+    arqa.arc_fit_qa(slf, final_fit)
     # Return
     return final_fit
 
@@ -1836,7 +1873,7 @@ def load_arcline(slf, wavenumber=True, vacuum=True):
         wv = 1.0E8/wn
     else:
         wv = wn
-    # Convert to vacuum if the input is not in vacuum  
+    # Convert to vacuum if the input is not in vacuum
     if not vacuum:
         msgs.work("Convert input vacuum wavelengths to air wavelengths")
     return wv
@@ -1879,5 +1916,3 @@ def arcord_strdir(maskorder):
                 sord = tsord
                 dirc = tdirc
     return sord, int(ncts), dirc
-
-

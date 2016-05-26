@@ -6,9 +6,10 @@ import yaml
 import armsgs
 
 try:
-    from xastropy.xutils import xdebug as debugger
+    from xastropy.xutils.xdebug import set_trace
+#    from xastropy.xutils import xdebug as xdb
 except ImportError:
-    import pdb as debugger
+    from pdb import set_trace
 
 # Logging
 msgs = armsgs.get_logger()
@@ -28,12 +29,12 @@ def parse_nist(slf,ion):
     else:
         root = slf._argflag['run']['pypitdir'] 
     # Find file
-    srch_file = root + '/data/arc_lines/NIST/Stash/'+ion+'_vacuum.ascii'
+    srch_file = root + '/data/arc_lines/NIST/'+ion+'_vacuum.ascii'
     nist_file = glob.glob(srch_file)
     if len(nist_file) == 0:
         msgs.error("Cannot find NIST file {:s}".format(srch_file))
     elif len(nist_file) != 1:
-        msgs.error("Multiple NIST files {:s}".format(srch_file))
+        msgs.error("Multiple NIST files for {:s}".format(srch_file))
     # Read
     nist_tbl = Table.read(nist_file[0], format='ascii.fixed_width')
     gdrow = nist_tbl['Observed'] > 0.  # Eliminate dummy lines
@@ -174,8 +175,9 @@ def parse_nist_tbl(tbl,parse_dict):
     return tbl[allgd]
 
 def load_parse_dict():
-    """icts for parsing Arc line lists from NIST
+    """Dicts for parsing Arc line lists from NIST
     Rejected lines are in the rejected_lines.yaml file
+
     """
     dict_parse = dict(min_intensity=0., min_Aki=0., min_wave=0.)
     arcline_parse = {} 
@@ -199,10 +201,10 @@ def load_parse_dict():
     arcline_parse['ZnI']['min_intensity'] = 50.
     # KrI
     arcline_parse['KrI'] = copy.deepcopy(dict_parse)
-    arcline_parse['KrI']['min_Aki']  = 1. # MAY NOT BE GOOD FOR DEIMOS, DESI, far red of LRISr
+    arcline_parse['KrI']['min_Aki'] = 1.  # MAY NOT BE GOOD FOR DEIMOS, DESI, far red of LRISr
     # XeI
     arcline_parse['XeI'] = copy.deepcopy(dict_parse)
-    arcline_parse['XeI']['min_intensity']  = 1000.
+    arcline_parse['XeI']['min_intensity'] = 1000.
     #
     return arcline_parse
 

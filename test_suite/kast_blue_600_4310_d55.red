@@ -5,7 +5,14 @@ run ncpus 1
 run spectrograph kast_blue
 out verbose 2
 out overwrite True
-out sorted kast_blue_600_4310_d55.xml
+out sorted kast_blue_600_4310_d55
+
+# reduce
+trace orders tilts spca
+reduce bgsubtraction method bspline
+pixflat comb method median
+pixflat comb rej_level [10.0,10.0]
+pixflat norm recnorm False
 
 # Read in the data
 data read

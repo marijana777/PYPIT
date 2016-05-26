@@ -14,8 +14,13 @@ import ardebug
 debug = ardebug.init()
 #debug['develop'] = True
 #debug['arc'] = True
-last_updated = "8 April 2016"
-version = '0.3'
+#debug['sky_sub'] = True
+#debug['trace'] = True
+#debug['obj_profile'] = True
+#debug['tilts'] = True
+#debug['flexure'] = True
+last_updated = "2 May 2016"
+version = '0.6'
 
 try:
     from linetools.spectra.xspectrum1d import XSpectrum1D
@@ -54,7 +59,7 @@ def PYPIT(redname, progname=__file__, quick=False, ncpus=1, verbose=1,
         0 = No output
         1 = Minimal output (default - suitable for the average user)
         2 = All output
-    use_masters : bool
+    use_masters : bool, optional
       Load calibration files from MasterFrames directory, if they exist
     logname : string
       The name of an ascii log file which is used to
@@ -187,22 +192,21 @@ if __name__ == "__main__":
     # Load options from command line
     try:
         opt, arg = getopt.getopt(sys.argv[1:], 'hmqc:v:', ['help',
-                                                          'use_masters',
+                                                           'use_masters',
                                                           'quick',
                                                           'cpus',
                                                           'verbose'])
         for o, a in opt:
             if o in ('-h', '--help'):
                 initmsgs.usage(None)
-            elif o in ('-q', '--quick'):  # I don't think this is working right
+            elif o in ('-q', '--quick'):
                 qck = True
             elif o in ('-c', '--cpus'):
                 cpu = int(a)
             elif o in ('-v', '--verbose'):
                 vrb = int(a)
-        for a in arg[1:]:
-            if a in ('-m', '--use_masters'):
-                use_masters = True
+            elif o in ('-m', '--use_masters'):
+                use_masters=True
         lnm = os.path.splitext(arg[0])[0] + ".log"
         red = arg[0]
     except getopt.GetoptError, err:
@@ -210,12 +214,12 @@ if __name__ == "__main__":
 
     # Execute the reduction, and catch any bugs for printout
     if debug['develop']:
-        PYPIT(red, progname=sys.argv[0], quick=qck, ncpus=cpu, verbose=vrb, logname=lnm,
-              use_masters=use_masters)
+        PYPIT(red, progname=sys.argv[0], quick=qck, ncpus=cpu, verbose=vrb,
+              logname=lnm, use_masters=use_masters)
     else:
         try:
-            PYPIT(red, progname=sys.argv[0], quick=qck, ncpus=cpu, verbose=vrb, logname=lnm,
-                  use_masters=use_masters)
+            PYPIT(red, progname=sys.argv[0], quick=qck, ncpus=cpu, verbose=vrb,
+                  logname=lnm, use_masters=use_masters)
         except:
             # There is a bug in the code, print the file and line number of the error.
             et, ev, tb = sys.exc_info()
@@ -226,6 +230,10 @@ if __name__ == "__main__":
                 line_no = str(traceback.tb_lineno(tb))
                 tb = tb.tb_next
             filename = filename.split('/')[-1]
-            initmsgs.bug("There appears to be a bug on Line " + line_no + " of " + filename + " with error:" +
-                         initmsgs.newline() + str(ev) + initmsgs.newline() +
-                         "---> please contact the authors")
+            if str(ev) != "":
+                initmsgs.bug("There appears to be a bug on Line " + line_no + " of " + filename + " with error:" +
+                             initmsgs.newline() + str(ev) + initmsgs.newline() +
+                             "---> please contact the authors")
+            # Get armsgs instance to terminate
+            from armsgs import get_logger
+            get_logger().close()

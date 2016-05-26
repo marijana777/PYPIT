@@ -3,6 +3,7 @@ from scipy.signal import savgol_filter
 import scipy.signal as signal
 import scipy.ndimage as ndimage
 import scipy.interpolate as inter
+from matplotlib import pyplot as plt
 import arcyextract
 import arcyutils
 import arcyproc
@@ -14,6 +15,8 @@ import artrace
 import arutils
 import arplot
 import arspecobj
+import arqa
+import arwave
 from arpca import pca2d
 
 try:
@@ -343,30 +346,73 @@ def bg_subtraction(slf, det, sciframe, varframe, crpix, tracemask=None,
     scifrcp = scimask.copy()
     scifrcp[whord] += (maskval*maskpix)[rxargsrt]
     scifrcp[np.where(ordpix == 0)] = maskval
-    msgs.info("Fitting sky background spectrum")
-    polypoints = 5
-    nsmth = 15
-    bgmodel = arcyproc.polyscan_fitsky(tilts.copy(), scifrcp.copy(), 1.0/errframe, maskval, polyorder, polypoints, nsmth, repeat)
-    bgpix = bgmodel[whord]
-    sbgpix = bgpix[xargsrt]
-    wbg = np.where(sbgpix != maskval)
-    # Smooth this spectrum
-    polyorder = 1
-    xpix = sxvpix[wbg]
-    maxdiff = np.sort(xpix[1:]-xpix[:-1])[xpix.size-sciframe.shape[0]-1] # only include the next pixel in the fit if it is less than 10x the median difference between all pixels
+    # Check tilts?
+    if msgs._debug['tilts']:
+        gdp = scifrcp != maskval
+        debugger.xplot(tilts[gdp]*tilts.shape[0], scifrcp[gdp], scatter=True)
+        if False:
+            plt.clf()
+            ax = plt.gca()
+            ax.scatter(tilts[1749,:], scifrcp[1749,:], color='green')
+            ax.scatter(tilts[1750,:], scifrcp[1750,:], color='blue')
+            ax.scatter(tilts[1751,:], scifrcp[1751,:], color='red')
+            ax.scatter(tilts[1752,:], scifrcp[1752,:], color='orange')
+            ax.set_ylim(0., 3000)
+            plt.show()
+        debugger.set_trace()
     #
-    msgs.info("Generating sky background image")
-    bgscan = arcyutils.polyfit_scan_lim(sxvpix[wbg], sbgpix[wbg].copy(), np.ones(wbg[0].size,dtype=np.float), maskval, polyorder, sciframe.shape[1]/3, repeat, maxdiff)
-    # Restrict to good values
-    gdscan = bgscan != maskval
-    if np.sum(~gdscan) > 0:
-        msgs.warn("At least one masked value in bgscan")
-    # Generate
-    bgframe = np.interp(tilts.flatten(), sxvpix[wbg[0][gdscan]], bgscan[gdscan]).reshape(tilts.shape)
+    msgs.info("Fitting sky background spectrum")
+    if slf._argflag['reduce']['bgsubtraction']['method'].lower() == 'polyscan':
+        polypoints = 5
+        nsmth = 15
+        bgmodel = arcyproc.polyscan_fitsky(tilts.copy(), scifrcp.copy(), 1.0/errframe, maskval, polyorder, polypoints, nsmth, repeat)
+        bgpix = bgmodel[whord]
+        sbgpix = bgpix[xargsrt]
+        wbg = np.where(sbgpix != maskval)
+        # Smooth this spectrum
+        polyorder = 1
+        xpix = sxvpix[wbg]
+        maxdiff = np.sort(xpix[1:]-xpix[:-1])[xpix.size-sciframe.shape[0]-1] # only include the next pixel in the fit if it is less than 10x the median difference between all pixels
+        msgs.info("Generating sky background image")
+        if msgs._debug['sky_sub']:
+            debugger.set_trace()
+            debugger.xplot(sxvpix[wbg]*tilts.shape[0], sbgpix[wbg], scatter=True)
+        bgscan = arcyutils.polyfit_scan_lim(sxvpix[wbg], sbgpix[wbg].copy(), np.ones(wbg[0].size,dtype=np.float), maskval, polyorder, sciframe.shape[1]/3, repeat, maxdiff)
+        # Restrict to good values
+        gdscan = bgscan != maskval
+        if msgs._debug['sky_sub']:
+            debugger.set_trace()
+            debugger.xplot(sxvpix[wbg[0][gdscan]]*tilts.shape[0], sbgpix[wbg[0][gdscan]], scatter=True)
+        if np.sum(~gdscan) > 0:
+            msgs.warn("At least one masked value in bgscan")
+        # Generate
+        bgframe = np.interp(tilts.flatten(), sxvpix[wbg[0][gdscan]], bgscan[gdscan]).reshape(tilts.shape)
+    elif slf._argflag['reduce']['bgsubtraction']['method'].lower() == 'bspline':
+        msgs.info("Using bspline sky subtraction")
+        gdp = scifrcp != maskval
+        srt = np.argsort(tilts[gdp])
+        bspl = arutils.func_fit(tilts[gdp][srt], scifrcp[gdp][srt], 'bspline', 3,
+                                **slf._argflag['reduce']['bgsubtraction']['bspline_keywds'])
+        bgf_flat = arutils.func_val(bspl, tilts.flatten(), 'bspline')
+        bgframe = bgf_flat.reshape(tilts.shape)
+        if msgs._debug['sky_sub']:
+            gdp = scifrcp != maskval
+            srt = np.argsort(tilts.flatten())
+            plt.clf()
+            ax = plt.gca()
+            ax.scatter(tilts[gdp]*tilts.shape[0], scifrcp[gdp], marker='o')
+            ax.plot(tilts.flatten()[srt]*tilts.shape[0], bgf_flat[srt], 'r-')
+            plt.show()
+            debugger.set_trace()
+    else:
+        msgs.error('Not ready for this method for bgsubtraction {:s}'.format(
+                slf._argflag['reduce']['bgsubtraction']['method'].lower()))
     if np.sum(np.isnan(bgframe)) > 0:
         msgs.warn("NAN in bgframe.  Replacing with 0")
         bad = np.isnan(bgframe)
         bgframe[bad] = 0.
+    if msgs._debug['sky_sub']:
+        debugger.set_trace()
     # Plot to make sure that the result is good
     #arutils.ds9plot(bgframe)
     #arutils.ds9plot(sciframe-bgframe)
@@ -386,7 +432,8 @@ def error_frame_postext(slf, sciframe, idx, fitsdict):
     return errframe
 
 
-def flatfield(slf, sciframe, flatframe, det, snframe=None):
+def flatfield(slf, sciframe, flatframe, det, snframe=None,
+              varframe=None):
     """ Flat field the input image
     Parameters
     ----------
@@ -400,15 +447,25 @@ def flatfield(slf, sciframe, flatframe, det, snframe=None):
     Returns
     -------
     flat-field image
-    and updated variance if snframe is input
+    and updated sigma array if snframe is input
+    or updated variance array if varframe is input
 
     """
+    if (varframe is not None) & (snframe is not None):
+        msgs.error("Cannot set both varframe and snframe")
+    # New image
     retframe = np.zeros_like(sciframe)
     w = np.where(flatframe > 0.0)
     retframe[w] = sciframe[w]/flatframe[w]
     if w[0].size != flatframe.size:
-        w = np.where(flatframe <= 0.0)
-        slf._bpix[det-1][w] = 1.0
+        ww = np.where(flatframe <= 0.0)
+        slf._bpix[det-1][ww] = 1.0
+    # Variance?
+    if varframe is not None:
+        retvar = np.zeros_like(sciframe)
+        retvar[w] = varframe[w]/flatframe[w]**2
+        return retframe, retvar
+    # Error image
     if snframe is None:
         return retframe
     else:
@@ -419,8 +476,7 @@ def flatfield(slf, sciframe, flatframe, det, snframe=None):
 
 
 def flatnorm(slf, det, msflat, maskval=-999999.9, overpix=6, plotdesc=""):
-    """
-    Normalize the flat-field frame
+    """ Normalize the flat-field frame
 
     Parameters
     ----------
@@ -444,16 +500,15 @@ def flatnorm(slf, det, msflat, maskval=-999999.9, overpix=6, plotdesc=""):
     msblaze : ndarray
       A 2d array containing the blaze function for each slit
     """
-
     msgs.info("Normalizing the master flat field frame")
+    norders = slf._lordloc[det-1].shape[1]
     # First, determine the relative scale of each amplifier (assume amplifier 1 has a scale of 1.0)
-    if slf._spect['det'][det-1]['numamplifiers'] > 1:
+    if (slf._spect['det'][det-1]['numamplifiers'] > 1) & (norders > 1):
         sclframe = get_ampscale(slf, det, msflat)
         # Divide the master flat by the relative scale frame
         msflat /= sclframe
     # Determine the blaze
     polyord_blz = 2  # This probably doesn't need to be a parameter that can be set by the user
-    norders = slf._lordloc[det-1].shape[1]
     # Look at the end corners of the detector to get detector size in the dispersion direction
     #xstr = slf._pixlocn[det-1][0,0,0]-slf._pixlocn[det-1][0,0,2]/2.0
     #xfin = slf._pixlocn[det-1][-1,-1,0]+slf._pixlocn[det-1][-1,-1,2]/2.0
@@ -514,8 +569,9 @@ def flatnorm(slf, det, msflat, maskval=-999999.9, overpix=6, plotdesc=""):
             #rows = np.arange(recsort.shape[0]/4,(3*recsort.shape[0])/4,dtype=np.int)
             #w = np.ix_(rows,np.arange(recframe.shape[1]))
             #recmean = np.mean(recsort[w],axis=0)
-            for i in xrange(recmean.size):
-                recframe[i,:] /= recmean[i]
+            if slf._argflag['pixflat']['norm']['recnorm']:
+                for i in xrange(recmean.size):
+                    recframe[:, i] /= recmean[i]
             # Undo the rectification
             normflat_unrec = arcyextract.rectify_undo(recframe, slf._pixcen[det-1][:,o], slf._lordpix[det-1][:,o],
                                                       slf._rordpix[det-1][:,o], slf._pixwid[det-1][o], maskval,
@@ -530,13 +586,13 @@ def flatnorm(slf, det, msflat, maskval=-999999.9, overpix=6, plotdesc=""):
     msgs.work("Perform a 2D PCA analysis on echelle blaze fits?")
     arplot.plot_orderfits(slf, msblaze, flat_ext1d, desc=plotdesc)
     # If there is more than 1 amplifier, apply the scale between amplifiers to the normalized flat
-    if slf._spect['det'][det-1]['numamplifiers'] > 1: msnormflat *= sclframe
+    if (slf._spect['det'][det-1]['numamplifiers'] > 1) & (norders > 1):
+        msnormflat *= sclframe
     return msnormflat, msblaze
 
 
 def get_ampscale(slf, det, msflat):
-    """
-    Normalize the flat-field frame
+    """ Normalize the flat-field frame
 
     Parameters
     ----------
@@ -625,6 +681,8 @@ def get_ampsec_trimmed(slf, fitsdict, det, scidx):
 
     Returns
     -------
+    fitsdict : dict
+      Updates to the input fitsdict
     """
     # Get naxis0, naxis1, datasec, oscansec, ampsec for specific instruments
     if slf._argflag['run']['spectrograph'] in ['lris_blue', 'lris_red']:
@@ -714,28 +772,28 @@ def reduce_frame(slf, sciframe, scidx, fitsdict, det, standard=False):
     if not isinstance(scidx,int):
         raise IOError("scidx needs to be an int")
     # Convert ADUs to electrons
-    sciframe *= slf._spect['det'][det-1]['gain']
+    sciframe *= gain_frame(slf,det) #slf._spect['det'][det-1]['gain']
     # Mask
     slf._scimask[det-1] = np.zeros_like(sciframe).astype(int)
     msgs.info("Masking bad pixels")
     slf.update_sci_pixmask(det, slf._bpix[det-1], 'BadPix')
     # Variance
-    msgs.info("Generate variance frame")
-    varframe = variance_frame(slf, det, sciframe, scidx, fitsdict)
-    if not standard:
-        slf._varframe[det-1] = varframe
+    msgs.info("Generate raw variance frame (from detected counts [flat fielded])")
+    rawvarframe = variance_frame(slf, det, sciframe, scidx, fitsdict)
     ###############
     # Subtract off the scattered light from the image
     msgs.work("Scattered light subtraction is not yet implemented...")
     ###############
-    # Flat field the science frame
+    # Flat field the science frame (and variance)
     if slf._argflag['reduce']['flatfield']:
         msgs.info("Flat fielding the science frame")
-        sciframe = flatfield(slf, sciframe, slf._mspixflatnrm[det-1], det)
+        sciframe, rawvarframe = flatfield(slf, sciframe, slf._mspixflatnrm[det-1], det,
+                             varframe=rawvarframe)
     else:
         msgs.info("Not performing a flat field calibration")
     if not standard:
         slf._sciframe[det-1] = sciframe
+        slf._rawvarframe[det-1] = rawvarframe
     ###############
     # Identify cosmic rays
     msgs.work("Include L.A.Cosmic arguments in the settings files")
@@ -746,52 +804,59 @@ def reduce_frame(slf, sciframe, scidx, fitsdict, det, standard=False):
     msgs.work("For now, perform extraction -- really should do this after the flexure+heliocentric correction")
     ###############
     # Estimate Sky Background
-    debug_objprof = False
-    if slf._argflag['reduce']['bgsubtraction']:
+    if slf._argflag['reduce']['bgsubtraction']['perform']:
         # Perform an iterative background/science extraction
-        msgs.info("Estimating the sky background")
-        if debug_objprof:
+        if msgs._debug['obj_profile'] and False:
+            msgs.warn("Reading background from 2D image on disk")
             from astropy.io import fits
-            datfil = slf._argflag['run']['scidir']+'/spec2d_{:s}.fits'.format(slf._target_name+str("_")+slf._basename.replace(":","_"))
+            datfil = slf._argflag['run']['scidir']+'/spec2d_{:s}.fits'.format(slf._basename.replace(":","_"))
             hdu = fits.open(datfil)
             bgframe = hdu[1].data - hdu[2].data
         else:
-            bgframe = bg_subtraction(slf, det, sciframe, varframe, crmask)
-        varframe = variance_frame(slf, det, sciframe, scidx, fitsdict, skyframe=bgframe)
+            msgs.info("First estimate of the sky background")
+            bgframe = bg_subtraction(slf, det, sciframe, rawvarframe, crmask)
+        #bgframe = bg_subtraction(slf, det, sciframe, varframe, crmask)
+        modelvarframe = variance_frame(slf, det, sciframe, scidx, fitsdict, skyframe=bgframe)
         if not standard: # Need to save
-            slf._varframe[det-1] = varframe
+            slf._modelvarframe[det-1] = modelvarframe
             slf._bgframe[det-1] = bgframe
     ###############
     # Estimate trace of science objects
-    scitrace = artrace.trace_object(slf, det, sciframe-bgframe, varframe, crmask, doqa=(not standard))
+    scitrace = artrace.trace_object(slf, det, sciframe-bgframe, modelvarframe, crmask, doqa=(not standard))
     if scitrace is None:
         msgs.info("Not performing extraction for science frame"+msgs.newline()+slf._fitsdict['filename'][scidx[0]])
         debugger.set_trace()
         #continue
     ###############
     # Finalize the Sky Background image
-    if slf._argflag['reduce']['bgsubtraction']:
+    if slf._argflag['reduce']['bgsubtraction']['perform']:
         # Perform an iterative background/science extraction
         msgs.info("Finalizing the sky background image")
         trcmask = scitrace['object'].sum(axis=2)
         trcmask[np.where(trcmask>0.0)] = 1.0
-        if not debug_objprof:
-            bgframe = bg_subtraction(slf, det, sciframe, varframe, crmask, tracemask=trcmask)
+        if not msgs._debug['obj_profile']:
+            bgframe = bg_subtraction(slf, det, sciframe, modelvarframe, crmask, tracemask=trcmask)
         # Redetermine the variance frame based on the new sky model
-        varframe = variance_frame(slf, det, sciframe, scidx, fitsdict, skyframe=bgframe)
+        modelvarframe = variance_frame(slf, det, sciframe, scidx, fitsdict, skyframe=bgframe)
         # Save
         if not standard:
-            slf._varframe[det-1] = varframe
+            slf._modelvarframe[det-1] = modelvarframe
             slf._bgframe[det-1] = bgframe
+
+    ###############
+    # Flexure down the slit? -- Not currently recommended
+    if slf._argflag['reduce']['flexure']['spec'] == 'slit_cen':
+        flex_dict = arwave.flexure_slit(slf, det)
+        arqa.flexure(slf, det, flex_dict, slit_cen=True)
+
     ###############
     # Determine the final trace of the science objects
     msgs.info("Final trace")
-    scitrace = artrace.trace_object(slf, det, sciframe-bgframe, varframe, crmask, doqa=(not standard))
+    scitrace = artrace.trace_object(slf, det, sciframe-bgframe, modelvarframe, crmask, doqa=(not standard))
     if standard:
         slf._msstd[det-1]['trace'] = scitrace
         specobjs = arspecobj.init_exp(slf, scidx, det, fitsdict,
-                                                         trc_img=scitrace,
-                                                         objtype='standard')
+                                      trc_img=scitrace, objtype='standard')
         slf._msstd[det-1]['spobjs'] = specobjs
     else:
         slf._scitrace[det-1] = scitrace
@@ -799,6 +864,7 @@ def reduce_frame(slf, sciframe, scidx, fitsdict, det, standard=False):
         specobjs = arspecobj.init_exp(slf, scidx, det, fitsdict,
                                       trc_img=scitrace, objtype='science')
         slf._specobjs[det-1] = specobjs
+
     ###############
     # Extract
     if scitrace is None:
@@ -809,19 +875,34 @@ def reduce_frame(slf, sciframe, scidx, fitsdict, det, standard=False):
     # Boxcar
     msgs.info("Extracting")
     bgcorr_box = arextract.boxcar(slf, det, specobjs, sciframe-bgframe,
-                                  varframe, bgframe, crmask, scitrace)
+                                  rawvarframe, bgframe, crmask, scitrace)
+
     # Optimal
     if not standard:
-        msgs.info("Optimal extraction with Gaussian profile")
+        msgs.info("Attempting optimal extraction with model profile")
         arextract.obj_profiles(slf, det, specobjs, sciframe-bgframe-bgcorr_box,
-                               varframe, bgframe+bgcorr_box, crmask, scitrace)
-        arextract.optimal_extract(slf, det, specobjs, sciframe-bgframe-bgcorr_box,
-                               varframe, bgframe+bgcorr_box, crmask, scitrace)
+                               modelvarframe, bgframe+bgcorr_box, crmask, scitrace)
+        newvar = arextract.optimal_extract(slf, det, specobjs, sciframe-bgframe-bgcorr_box,
+                                  modelvarframe, bgframe+bgcorr_box, crmask, scitrace)
+        msgs.work("Should update variance image (and trace?) and repeat")
+        #
+        arextract.obj_profiles(slf, det, specobjs, sciframe-bgframe-bgcorr_box,
+                               newvar, bgframe+bgcorr_box, crmask, scitrace)
+        finalvar = arextract.optimal_extract(slf, det, specobjs, sciframe-bgframe-bgcorr_box,
+                                           newvar, bgframe+bgcorr_box, crmask, scitrace)
+        slf._modelvarframe[det-1] = finalvar.copy()
+
+    # Flexure correction?
+    if (slf._argflag['reduce']['flexure']['spec'] is not None) and (not standard):
+        flex_dict = arwave.flexure_obj(slf, det)
+        arqa.flexure(slf, det, flex_dict)
+
     # Final
     if not standard:
         slf._bgframe[det-1] += bgcorr_box
     # Return
     return True
+
 
 def sn_frame(slf, sciframe, idx):
 
@@ -980,9 +1061,58 @@ def lacosmic(slf, fitsdict, det, sciframe, scidx, maxiter=1, grow=1.5, maskval=-
     return crmask
 
 
-def sub_overscan(slf, det, file):
+def gain_frame(slf, det):
+    """ Generate a gain image from the spect dict
+
+    Parameters
+    ----------
+    slf
+    det
+
+    Returns
+    -------
+    gain_img : ndarray
+
+    """
+    # Loop on amplifiers
+    gain_img = np.zeros_like(slf._ampsec[det-1])
+    for ii in range(slf._spect['det'][det-1]['numamplifiers']):
+        amp = ii+1
+        amppix = slf._ampsec[det-1] == amp
+        gain_img[amppix] = slf._spect['det'][det-1]['gain'][amp-1]
+    # Return
+    return gain_img
+
+
+def rn_frame(slf, det):
+    """ Generate a RN image
+
+    Parameters
+    ----------
+    slf
+    det
+
+    Returns
+    -------
+    rn_img : ndarray
+      Read noise *variance* image (i.e. RN**2)
+    """
+    # Loop on amplifiers
+    rnimg = np.zeros_like(slf._ampsec[det-1])
+    for ii in range(slf._spect['det'][det-1]['numamplifiers']):
+        amp = ii+1
+        amppix = slf._ampsec[det-1] == amp
+        rnimg[amppix] = (slf._spect['det'][det-1]['ronoise'][ii]**2 +
+                         (0.5*slf._spect['det'][det-1]['gain'][ii])**2)
+    # Return
+    return rnimg
+
+
+def sub_overscan(slf, det, file, use_datasec=False):
     """
     Subtract overscan
+    use_datasec : bool, optional
+      Overscan region is limited to datasec, not ampsec
     """
 
     for i in xrange(slf._spect['det'][det-1]['numamplifiers']):
@@ -1009,10 +1139,12 @@ def sub_overscan(slf, det, file):
         wa = np.ix_(xam, yam)
         # Make sure the overscan section has at least one side consistent with ampsec (note: ampsec should contain both datasec and oscansec)
         if ax1-ax0 == ox1-ox0:
-            osfit = np.mean(oscan, axis=1)
+            #osfit = np.mean(oscan, axis=1)
+            osfit = np.median(oscan, axis=1)  # Mean was hit by CRs
             flg_oscan = 1
         elif ay1-ay0 == oy1-oy0:
-            osfit = np.mean(oscan, axis=0)
+            #osfit = np.mean(oscan, axis=0)   # Mean was hit by CRs
+            osfit = np.median(oscan, axis=0)
             flg_oscan = 0
         else:
             msgs.error("Overscan sections do not match amplifier sections for amplifier {0:d}".format(i+1))
@@ -1032,14 +1164,18 @@ def sub_overscan(slf, det, file):
         #plt.show()
         #plt.clf()
         # Determine the section of the chip that contains data for this amplifier
-        datasec = "datasec{0:02d}".format(i+1)
-        dx0, dx1, dy0, dy1 = slf._spect['det'][det-1][datasec][0][0], slf._spect['det'][det-1][datasec][0][1], slf._spect['det'][det-1][datasec][1][0], slf._spect['det'][det-1][datasec][1][1]
-        if dx0 < 0: dx0 += file.shape[0]
-        if dx1 <= 0: dx1 += file.shape[0]
-        if dy0 < 0: dy0 += file.shape[1]
-        if dy1 <= 0: dy1 += file.shape[1]
-        xds = np.arange(dx0, dx1)
-        yds = np.arange(dy0, dy1)
+        if use_datasec:
+            datasec = "datasec{0:02d}".format(i+1)
+            dx0, dx1, dy0, dy1 = slf._spect['det'][det-1][datasec][0][0], slf._spect['det'][det-1][datasec][0][1], slf._spect['det'][det-1][datasec][1][0], slf._spect['det'][det-1][datasec][1][1]
+            if dx0 < 0: dx0 += file.shape[0]
+            if dx1 <= 0: dx1 += file.shape[0]
+            if dy0 < 0: dy0 += file.shape[1]
+            if dy1 <= 0: dy1 += file.shape[1]
+            xds = np.arange(dx0, dx1)
+            yds = np.arange(dy0, dy1)
+        else:
+            xds = np.arange(ax0, ax1)
+            yds = np.arange(ay0, ay1)
         wd = np.ix_(xds, yds)
         ossub = ossub.reshape(osfit.size, 1)
         if wd[0].shape[0] == ossub.shape[0]:
@@ -1090,27 +1226,29 @@ def trim(slf, file, det):
     return file[w]
 
 
-
-
-
-def variance_frame(slf, det, sciframe, idx, fitsdict, skyframe=None):
+def variance_frame(slf, det, sciframe, idx, fitsdict=None, skyframe=None, objframe=None):
     """ Calculate the variance image including detector noise
     Parameters
     ----------
-    fitsdict : dict
+    fitsdict : dict, optional
       Contains relevant information from fits header files
+    objframe : ndarray, optional
+      Model of object counts
     Returns
     -------
     variance image : ndarray
     """
-    scicopy = sciframe.copy()
+    # The effective read noise (variance image)
+    rnoise = rn_frame(slf,det)
     if skyframe is not None:
-        msgs.warn("arproc.variance_frame: JXP worries the next line could be biased.")
-        wfill = np.where(np.abs(skyframe) > np.abs(scicopy))
-        scicopy[wfill] = np.abs(skyframe[wfill])
-    # Dark Current noise
-    dnoise = (slf._spect['det'][det-1]['darkcurr'] *
-              float(fitsdict["exptime"][idx])/3600.0)
-    # The effective read noise
-    rnoise = slf._spect['det'][det-1]['ronoise']**2 + (0.5*slf._spect['det'][det-1]['gain'])**2
-    return np.abs(scicopy) + rnoise + dnoise
+        if objframe is None:
+            objframe = np.zeros_like(skyframe)
+        varframe = np.abs(skyframe + objframe - np.sqrt(2)*np.sqrt(rnoise)) + rnoise
+        return varframe
+    else:
+        scicopy = sciframe.copy()
+        # Dark Current noise
+        dnoise = (slf._spect['det'][det-1]['darkcurr'] *
+                  float(fitsdict["exptime"][idx])/3600.0)
+        # Return
+        return np.abs(scicopy) + rnoise + dnoise

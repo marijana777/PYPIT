@@ -4,6 +4,7 @@ from textwrap import wrap as wraptext
 from inspect import currentframe, getouterframes
 from glob import glob
 
+
 class Messages:
     """
     Create coloured text for messages printed to screen.
@@ -47,6 +48,7 @@ class Messages:
         self._last_updated = last_updated
         self._version = version
         self._verbose = verbose
+        self.sciexp = None
         # Save the version of the code including last update information to the log file
         if self._log:
             self._log.write("------------------------------------------------------\n\n")
@@ -131,8 +133,14 @@ class Messages:
 
     def close(self):
         """
-        Close the log file before the code exits
+        Close the log file and QA PDFs before the code exits
         """
+        # Close PDFs
+        try:
+            self.sciexp._qa.close()
+        except AttributeError:
+            pass
+        # Close log
         if self._log:
             self._log.close()
 
@@ -155,10 +163,9 @@ class Messages:
         print >>sys.stderr, premsg+dbgmsg+msg
         if self._log:
             self._log.write(self.cleancolors(premsg+dbgmsg+msg)+"\n")
+        # Close PDFs and log file
         self.close()
-        # Close PDFs
-        self.sciexp._qa.close()
-        #
+        # Print command line usage
         if usage:
             self.usage(None)
         sys.exit()

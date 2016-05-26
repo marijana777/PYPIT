@@ -1,9 +1,3 @@
-import sys
-from os.path import dirname, basename
-from textwrap import wrap as wraptext
-from inspect import currentframe, getouterframes
-from glob import glob
-
 def init():
     """
     Returns
@@ -14,8 +8,12 @@ def init():
     debug = dict(develop=False,
                  new_instrument=False,
                  arc=False,
+                 obj_profile=False,
+                 sky_sub=False,
                  trace=False,
                  wave=False,
+                 tilts=False,
+                 flexure=False,
                  trace_obj=False,
                  )
     return debug
