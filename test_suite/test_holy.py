@@ -311,16 +311,15 @@ def test_tcent(infil='/test_suite/lrisr_600_7500_holy.json',
     wvsoln_dict, npix, all_idpix, all_idwv, tcent, tmsk, twv, llist = init_holy2_test(infil)
     pixcen = 1024
     nline = 4
-    ntrial = 2
+    ntrial = 5
     ntcent = len(tcent)
     rstate = np.random.RandomState(seed)
 
     # Loop on modifying tcent
     if nmodify is None:
-        nmodify = [-20, 40]
-        #nmodify = [-20, -10, -5, 0, 5, 10, 20, 40]
-    pixcen = np.round(np.linspace(100., 2000., 3)).astype(int)
-    #pixcen = np.round(np.linspace(100., 2000., 5)).astype(int)
+        nmodify = [-20, -10, 10, 40]
+    #pixcen = np.round(np.linspace(100., 2000., 3)).astype(int)
+    pixcen = np.round(np.linspace(100., 2000., 5)).astype(int)
     odict = dict(ngrid=ngrid, p23_frac=p23_frac, nlines=nline,
                     pixcen=pixcen, nmodify=nmodify, ntrial=ntrial, runs={})
     for nmod in nmodify:
@@ -415,7 +414,6 @@ def plot_ngoodbad(json_fil, parms, title, outfil):
             nbad[kk] = odict['runs'][run]['NBAD']
         for ss, iparm0 in enumerate(odict[parms[0]]):
             gd0 = np.where(parm0 == iparm0)[0]
-            debugger.set_trace()
             ax.scatter(parm1[gd0], ngood[gd0], marker=symbols[ss], color='blue',
                        label='{}'.format(iparm0))
             ax2.scatter(parm1[gd0], nbad[gd0], marker=symbols[ss], color='red')
@@ -456,6 +454,14 @@ def main(flg_test):
     # Fiducial
     if (flg_test % 2**1) >= 2**0:
         test_lrisr_600_7500()
+
+    # Holy2 with varying Holy1 input
+    if (flg_test % 2**2) >= 2**1:
+        test_lrisr_600_7500()
+
+    # Holy2 tcent
+    if (flg_test % 2**3) >= 2**2:
+        test_tcent(outfil='test_tcent.json')
 
 # Command line execution
 if __name__ == '__main__':
