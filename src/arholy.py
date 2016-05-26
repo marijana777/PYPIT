@@ -12,7 +12,7 @@ except:
 msgs = armsgs.get_logger()
 
 
-def init_holy2():
+def init_holy2(use_noncalib=True):
     """ Initialize the start of holy phase 2
     Returns
     -------
@@ -31,6 +31,8 @@ def init_holy2():
     all_idwv = np.array(wvsoln_dict['yfit'])
 
     # Grab inner 5 lines (as our initial test)
+    #diff = np.abs(all_idpix-424)
+    #diff = np.abs(all_idpix-800)
     diff = np.abs(all_idpix-1024)
     asrt = np.argsort(diff)
     idpix = all_idpix[asrt[0:5]]
@@ -75,15 +77,20 @@ def init_holy2():
 
     # Add in non-calib lines
     tcent = np.array(wvsoln_dict['tcent'])
-    msktc = tcent == tcent
-    for jj,ipix in enumerate(all_idpix):
-        diff = np.abs(tcent-ipix)
-        if np.min(diff) < 1.:
-            msktc[np.argmin(diff)] = False
-    newtc = tcent[msktc]
-    newwv = arutils.func_val(wvsoln_dict['fitc'], newtc/xnorm, wvsoln_dict['function'],
-                             minv=wvsoln_dict['fmin'], maxv=wvsoln_dict['fmax'])
-    allwv = np.concatenate([llist,newwv])
+    if use_noncalib:
+        msktc = tcent == tcent
+        for jj,ipix in enumerate(all_idpix):
+            diff = np.abs(tcent-ipix)
+            if np.min(diff) < 1.:
+                msktc[np.argmin(diff)] = False
+        newtc = tcent[msktc]
+        newwv = arutils.func_val(wvsoln_dict['fitc'], newtc/xnorm, wvsoln_dict['function'],
+                                 minv=wvsoln_dict['fmin'], maxv=wvsoln_dict['fmax'])
+        allwv = np.concatenate([llist,newwv])
+    else:
+        allwv = llist
+
+    # Setup
     allwv.sort()
     xall = (allwv-wvcen)/wvcen
     xall2 = xall**2
@@ -91,12 +98,14 @@ def init_holy2():
 
     # TODO
     #  Scan from +/- npix in p2 and p3
+    #  Should ignore lines with 2 matches within 1 pix
 
     # Generate pix image
-    pix_img = np.outer(all_idpix, np.ones(len(allwv)))
+    pix_img = np.outer(tcent, np.ones(len(allwv)))
 
     # Ready to go
     ntst = 100
+    '''  1D
     tst_val = np.linspace(0., 2*ppopt[1], ntst)
     tst_metric = np.zeros(ntst)
     wv_to_pix_setup = pixcen + dpixcen*xall + ppopt[0]*xall2
@@ -107,7 +116,44 @@ def init_holy2():
         tst_metric[jj] = holy_cross_lines(pix_img, wv_to_pix)
         if (jj % 10) == 0:
             print('jj = {:d}'.format(jj))
+    '''
+    tst_val2 = np.linspace(0., 2*ppopt[0], ntst)
+    tst_val3 = np.linspace(0., 2*ppopt[1], ntst)
+    tst_metric = np.zeros((ntst,ntst))
+    wv_to_pix_setup = pixcen + dpixcen*xall
+    for ii in xrange(ntst):
+        for jj in xrange(ntst):
+            # The next lines could/should be 'mapped'
+            wv_to_pix = wv_to_pix_setup + tst_val2[ii]*xall2 + tst_val3[jj]*xall3
+            # Main call
+            tst_metric[ii,jj] = holy_cross_lines(pix_img, wv_to_pix)
+        #if (ii % 10) == 0:
+        #    print('ii = {:d}'.format(ii))
+    print('max = {:g}'.format(np.max(tst_metric)))
+
+    # ID lines (Line list only)
+    match_tol = 0.3  # Fraction of a pixel
+    min_idx = np.where(tst_metric == np.max(tst_metric))
+    match_p2 = tst_val2[min_idx[0][0]]
+    match_p3 = tst_val3[min_idx[1][0]]
+    xmatch = (llist-wvcen)/wvcen
+    match_pix = pixcen + dpixcen*xmatch + match_p2*xmatch**2 + match_p3*xmatch**3
+    tids = np.zeros(len(tcent))
+    for kk,ipix in enumerate(tcent):
+        diff = np.abs(match_pix-ipix)
+        if np.min(diff) < match_tol:
+            tids[kk] = llist[np.argmin(diff)]
+    # Test again input
+    aids = np.zeros(len(all_idpix))
+    for kk,ipix in enumerate(all_idpix):
+        diff = np.abs(match_pix-ipix)
+        if np.min(diff) < match_tol:
+            aids[kk] = llist[np.argmin(diff)]
+    debugger.xpcol(all_idpix, aids, aids-all_idwv)
     debugger.set_trace()
+    debugger.ximshow(tst_metric)
+
+
 
 def holy_cross_lines(pix_img, wv_to_pix, max_off=5., two_inv_sigma_sq=2./4):
     """
