@@ -151,7 +151,19 @@ def test_lrisr_600_7500(debug=True):
     debugger.set_trace()
 
 
-def init_holy2_test(infil):
+def init_holy2_test(infil, lamps=None):
+    """
+    Parameters
+    ----------
+    infil
+    lamps
+
+    Returns
+    -------
+
+    """
+    if lamps is None:
+        lamps=['ArI','NeI','HgI','KrI','XeI']
     # Open test solution
     root = '/Users/xavier/local/Python/PYPIT'
     wvsoln_fil = root+infil
@@ -166,6 +178,14 @@ def init_holy2_test(infil):
     tcent = np.array(wvsoln_dict['tcent'])
     print('Number of Input IDs = {:d}'.format(len(all_idwv)))
 
+    if False:
+        func = 'polynomial'
+        tmask, tparam = arutils.robust_polyfit(all_idwv, all_idpix, 4, function=func)
+        tpixfit = arutils.func_val(tparam, all_idwv, func)
+        print('tparam', tparam)
+        trms = np.sqrt(np.mean((tpixfit-all_idpix)**2))
+        print('full_RMS = {:g}'.format(trms))
+
     # Mask ID
     tmsk = tcent==tcent
     twv = np.zeros(len(tcent))
@@ -176,7 +196,7 @@ def init_holy2_test(infil):
             twv[ii] = all_idwv[np.argmin(np.abs(itc-all_idpix))]
 
     # Linelist
-    alist = ararclines.load_arcline_list(None,None,['ArI','NeI','HgI','KrI','XeI'],None)
+    alist = ararclines.load_arcline_list(None,None, lamps, None)
     llist = np.array(alist['wave'])
     llist.sort()
 
@@ -248,8 +268,8 @@ def evalaute_ids(tids, tmsk, twv):
     return ID, gdID, badID
 
 
-def test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json',
-               outfil=None, ngrid=250, p23_frac = 0.25):
+def test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json', verbose=False,
+               outfil=None, ngrid=250, p23_frac = 0.25, lamps=None):
     """ Test number and location of Holy 1 lines
 
     Parameters
@@ -262,10 +282,11 @@ def test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json',
 
     """
     # Init
-    wvsoln_dict, npix, all_idpix, all_idwv, tcent, tmsk, twv, llist = init_holy2_test(infil)
+    wvsoln_dict, npix, all_idpix, all_idwv, tcent, tmsk, twv, llist = init_holy2_test(infil, lamps=lamps)
 
     # Loop on nlines and pixcen
-    nlines = [3,4,5]
+    #nlines = [3,4,5]
+    nlines = [4,5]
     pixcen = np.round(np.linspace(100.,2000.,10)).astype(int)
     odict = dict(ngrid=ngrid, p23_frac=p23_frac, nlines=nlines, infil=infil,
                     pixcen=pixcen, runs={}, maxID=np.sum(tmsk))
@@ -273,9 +294,16 @@ def test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json',
         print('nline = {:d}'.format(nline))
         for icen in pixcen:
             idpix,idwave = grab_id_lines(all_idpix, all_idwv, icen, nline)
-            # Run
+            # Extend?
+            extend = False
+            if extend:
+                etids = arholy.extend_fit(tcent, idpix, idwave, llist)
+                gdp = etids > 1.
+                idpix = tcent[gdp]
+                idwave = etids[gdp]
+            # Holy2
             tids = arholy.run_holy2(tcent, idpix, idwave, npix, llist,
-                             p23_frac=p23_frac, ngrid=ngrid, verbose=False)
+                             p23_frac=p23_frac, ngrid=ngrid, verbose=verbose)
             # Evaluate
             ID, gdID, badID = evalaute_ids(tids, tmsk, twv)
             # Fill
@@ -284,6 +312,9 @@ def test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json',
             odict['runs'][key]['NID'] = np.sum(ID)
             odict['runs'][key]['NGOOD'] = np.sum(gdID)
             odict['runs'][key]['NBAD'] = np.sum(badID)
+            if verbose:
+                print('NGOOD={:d}, NBAD={:d}'.format(np.sum(gdID),np.sum(badID)))
+
     # Write?
     if outfil is not None:
         gddict = ltu.jsonify(odict)
@@ -457,8 +488,12 @@ def main(flg_test):
 
     # Holy2 with varying Holy1 input
     if (flg_test % 2**2) >= 2**1:
-        test_holy1(infil='lrisr_600_7500_holy.json',
+        test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json',
+                   lamps=['ArI','NeI','HgI','KrI','XeI'],
                    ngrid=500, outfil='test_holy1_lrisr600_500.json')
+        #test_holy1(infil='lrisb_600_4000_holy.json',
+        #           lamps=['ZnI', 'CdI', 'HgI'],
+        #           ngrid=250, outfil='test_holy1_lrisb600_500.json')
 
     # Holy2 tcent
     if (flg_test % 2**3) >= 2**2:
@@ -469,7 +504,8 @@ if __name__ == '__main__':
 
     if len(sys.argv) == 1:
         flg_test = 0
-        flg_test += 2**0   # LRISr
+        #flg_test += 2**0   # LRISr
+        flg_test += 2**1   # Holy1
     else:
         flg_fig = sys.argv[1]
 

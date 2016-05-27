@@ -16,8 +16,8 @@ msgs = armsgs.get_logger()
 
 
 def run_holy2(tcent, idpix, idwave, npix, llist, noncalib=None, ngrid=100,
-              frac_extra=0.25, p23_frac=0.25, verbose=True,
-              debug=False, close_tol=2.):
+              frac_extra=0.25, p23_frac=0.5, verbose=True,
+              debug=False, close_tol=2., ndeg=2, match_tol=0.6):
     """ Run Holy 2
 
     Parameters
@@ -33,27 +33,39 @@ def run_holy2(tcent, idpix, idwave, npix, llist, noncalib=None, ngrid=100,
       Fraction of detector to allows shift from p2 and p3
     close_tol : float, optional
       If there are multiple lines within close_tol, don't ID this line
+    match_tol : float, optional
 
     Returns
     -------
 
     """
-    from scipy.optimize import curve_fit
+    #from scipy.optimize import curve_fit
 
     # Fit ID lines with 2nd order polynomial
     func = 'polynomial'
-    mask, pparam = arutils.robust_polyfit(idwave, idpix, 2, function=func)
-    wmask, wparam = arutils.robust_polyfit(idpix, idwave, 2, function=func)
+    mask, pparam = arutils.robust_polyfit(idwave, idpix, ndeg, function=func)
+    wmask, wparam = arutils.robust_polyfit(idpix, idwave, ndeg, function=func)
     pixfit = arutils.func_val(pparam, idwave, func)
     if verbose:
         prms = np.sqrt(np.mean((pixfit-idpix)**2))
         print('RMS = {:g}'.format(prms))
+        print('pparam', pparam)
+        tmask, tparam = arutils.robust_polyfit(idwave, idpix, 3, function=func)
+        print('tparam', tparam)
+        tpixfit = arutils.func_val(tparam, idwave, func)
+        trms = np.sqrt(np.mean((tpixfit-idpix)**2))
+        print('tRMS = {:g}'.format(trms))
 
     # Setup global pixel fit
     wvmin, wvmax = np.min(idwave), np.max(idwave)
     wvcen = np.mean([wvmin,wvmax])
     pixcen = arutils.func_val(pparam, wvcen, func)
-    dpixcen = pparam[1]*wvcen + pparam[2]*(wvmax**2-wvmin**2)/(wvmax-wvmin)*wvcen
+    if ndeg == 1:
+        dpixcen = pparam[1]*wvcen
+    elif ndeg == 2:
+        dpixcen = pparam[1]*wvcen + pparam[2]*(wvmax**2-wvmin**2)/(wvmax-wvmin)*wvcen
+    else:
+        raise ValueError("Not ready for this")
     chk = False
     if chk:
         wvval = (idwave - wvcen)/wvcen
@@ -137,7 +149,6 @@ def run_holy2(tcent, idpix, idwave, npix, llist, noncalib=None, ngrid=100,
         print('max = {:g}'.format(np.max(metric)))
 
     # ID lines (Line list only)
-    match_tol = 0.3  # Fraction of a pixel
     min_idx = np.where(metric == np.max(metric))
     match_p2 = scan_p2[min_idx[0][0]]
     match_p3 = scan_p3[min_idx[1][0]]
@@ -150,8 +161,13 @@ def run_holy2(tcent, idpix, idwave, npix, llist, noncalib=None, ngrid=100,
     for kk,ipix in enumerate(tcent):
         diff = np.abs(match_pix-ipix)
         nclose = np.sum(diff < close_tol)
-        if (np.min(diff) < match_tol) & (nclose == 1):
-            tids[kk] = llist[np.argmin(diff)]
+        if verbose:
+            print('min for {:g} is {:g}'.format(ipix, np.min(diff)))
+        if (np.min(diff) < match_tol):
+            if nclose == 1:
+                tids[kk] = llist[np.argmin(diff)]
+            elif verbose:
+                print('2 close lines')
     # Test again input
     '''
     aids = np.zeros(len(all_idpix))
@@ -164,7 +180,19 @@ def run_holy2(tcent, idpix, idwave, npix, llist, noncalib=None, ngrid=100,
     if verbose:
         print('NID = {:d}'.format(np.sum(tids > 1)))
     #debugger.xpcol(tcent, tids)#, aids-all_idwv)
+    #debug=True
     if debug:
+        # Plot 1D
+        if False:
+            from matplotlib import pyplot as plt
+            plt.clf()
+            ax = plt.gca()
+            ax.scatter(tcent, [0.5]*len(tcent), label='tcent')
+            for mpix in match_pix:
+                ax.plot([mpix]*2, (0,1), 'r')
+            plt.show()
+            plt.close()
+        #
         debugger.set_trace()
         debugger.ximshow(metric)
     # Return
@@ -199,3 +227,53 @@ def holy_cross_lines(pix_img, wv_to_pix, max_off=5., two_inv_sigma_sq=2./4):
     # Return
     return metric
 
+def extend_fit(tcent, idpix, idwv, llist, match_toler=1.):
+    """ Same underlying algorithm for extending the fit as in ararc.simple_calib
+    Returns
+    -------
+
+    """
+    # Indices for initial fit
+    ifit = []
+    for ipix in idpix:
+        ifit.append(np.argmin(np.abs(ipix-tcent)))
+    ifit = np.array(ifit)
+    # Setup for fitting
+    sv_ifit = list(ifit) # Keep the originals
+    all_ids = -999.*np.ones(len(tcent))
+    #all_idsion = np.array(['12345']*len(tcent))
+    all_ids[ifit] = idwv
+    #all_idsion[ifit] = idsion[gd_str]
+    # Fit
+    n_order = 2
+    n_final = 3
+    func = 'polynomial'
+    flg_quit = False
+    nsig_rej = 3.
+    fmin, fmax = -1., 1.
+    while (n_order <= n_final) and (flg_quit is False):
+        # Fit with rejection
+        xfit, yfit = tcent[ifit], all_ids[ifit]
+        mask, fit = arutils.robust_polyfit(xfit, yfit, n_order, function=func, sigma=nsig_rej, minv=fmin, maxv=fmax)
+        # Reject but keep originals (until final fit)
+        ifit = list(ifit[mask == 0]) + sv_ifit
+        # Find new points (should we allow removal of the originals?)
+        twave = arutils.func_val(fit, tcent, func, minv=fmin, maxv=fmax)
+        for ss,iwave in enumerate(twave):
+            mn = np.min(np.abs(iwave-llist))
+            if mn/fit[1] < match_toler:
+                imn = np.argmin(np.abs(iwave-llist))
+                # Update and append
+                all_ids[ss] = llist[imn]
+                #all_idsion[ss] = llist['Ion'][imn]
+                ifit.append(ss)
+        # Keep unique ones
+        ifit = np.unique(np.array(ifit,dtype=int))
+        # Increment order
+        if n_order < n_final:
+            n_order += 1
+        else:
+            # This does 2 iterations at the final order
+            flg_quit = True
+    # Return
+    return all_ids
