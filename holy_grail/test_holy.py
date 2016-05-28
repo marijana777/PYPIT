@@ -29,74 +29,14 @@ import ararclines
 import arcyarc
 import arutils
 import arholy
+import arwave
 
 try:
     from xastropy.xutils import xdebug as debugger
 except:
     import pdb as debugger
 
-def fcheby(xnrm,order):
-    leg = np.zeros((len(xnrm),order))
-    leg[:,0] = 1.
-    if order >= 2:
-        leg[:,1] = xnrm
-    # For looop
-    for j in range(2,order):
-        leg[:,j] = 2.0 * xnrm * leg[:,j-1] - leg[:,j-2]
-    # Return
-    return leg
 
-def cheby_val(coeff, x, nrm, order):
-    #
-    xnrm = 2. * (x - nrm[0])/nrm[1]
-    # Matrix first
-    leg = fcheby(xnrm, order)
-    # Dot
-    return np.dot(leg, coeff)
-
-#################
-def find_peaks(censpec):
-    siglev = 6.0
-    bpfit = 5  # order of the polynomial used to fit the background 'continuum'
-    fitp = 7 #slf._argflag['arc']['calibrate']['nfitpix']
-    if len(censpec.shape) == 3: detns = censpec[:, 0].flatten()
-    else: detns = censpec.copy()
-    xrng = np.arange(float(detns.size))
-    yrng = np.zeros(detns.size)
-    mask = np.zeros(detns.size, dtype=np.int)
-    mskcnt = 0
-    while True:
-        w = np.where(mask == 0)
-        xfit = xrng[w]
-        yfit = detns[w]
-        ct = np.polyfit(xfit, yfit, bpfit)
-        yrng = np.polyval(ct, xrng)
-        sigmed = 1.4826*np.median(np.abs(detns[w]-yrng[w]))
-        w = np.where(detns > yrng+1.5*sigmed)
-        mask[w] = 1
-        if mskcnt == np.sum(mask):
-            break  # No new values have been included in the mask
-        mskcnt = np.sum(mask)
-    #
-    w = np.where(mask == 0)
-    xfit = xrng[w]
-    yprep = detns - yrng
-    sfit = 1.4826*np.abs(detns[w]-yrng[w])
-    ct = np.polyfit(xfit, sfit, bpfit)
-    yerr = np.polyval(ct, xrng)
-    myerr = np.median(np.sort(yerr)[:yerr.size/2])
-    yerr[np.where(yerr < myerr)] = myerr
-    # Find all significant detections
-    # The last argument is the overall minimum significance level of an arc line detection and the second
-    # last argument is the level required by an individual pixel before the neighbourhood of this pixel is searched.
-    satsnd = np.zeros_like(censpec)
-    tpixt, num = arcyarc.detections_sigma(yprep, yerr, np.zeros(satsnd.shape[0], dtype=np.int), siglev/2.0, siglev)
-    pixt = arcyarc.remove_similar(tpixt, num)
-    pixt = pixt[np.where(pixt != -1)].astype(np.int)
-    tampl, tcent, twid, ngood = arcyarc.fit_arcorder(xrng, yprep, pixt, fitp)
-    w = np.where((np.isnan(twid) == False) & (twid > 0.0) & (twid < 10.0/2.35) & (tcent > 0.0) & (tcent < xrng[-1]))
-    # Return
-    return tampl, tcent, twid, w, yprep
 
 
 def test_lrisr_600_7500(debug=True):
@@ -132,7 +72,7 @@ def test_lrisr_600_7500(debug=True):
 
     # Evaluate fit at peaks
     pixwave = cheby_val(s['calib'][idx]['ffit'], pixpk,
-                        s['calib'][idx]['nrm'],s['calib'][idx]['nord'],)
+                        s['calib'][idx]['nrm'],s['calib'][idx]['nord'])
     # Setup IDlines
     id_pix = []
     for idw in id_wave:
@@ -269,7 +209,8 @@ def evalaute_ids(tids, tmsk, twv):
 
 
 def test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json', verbose=False,
-               outfil=None, ngrid=250, p23_frac = 0.25, lamps=None):
+               outfil=None, ngrid=250, p23_frac = 0.25, lamps=None,
+               nlines=(3,4,5)):
     """ Test number and location of Holy 1 lines
 
     Parameters
@@ -285,8 +226,6 @@ def test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json', verbose=False,
     wvsoln_dict, npix, all_idpix, all_idwv, tcent, tmsk, twv, llist = init_holy2_test(infil, lamps=lamps)
 
     # Loop on nlines and pixcen
-    #nlines = [3,4,5]
-    nlines = [4,5]
     pixcen = np.round(np.linspace(100.,2000.,10)).astype(int)
     odict = dict(ngrid=ngrid, p23_frac=p23_frac, nlines=nlines, infil=infil,
                     pixcen=pixcen, runs={}, maxID=np.sum(tmsk))
@@ -295,12 +234,11 @@ def test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json', verbose=False,
         for icen in pixcen:
             idpix,idwave = grab_id_lines(all_idpix, all_idwv, icen, nline)
             # Extend?
+            if nline < 4:
+                idpix,idwave = arholy.add_lines(tcent, idpix, idwave, llist, verbose=verbose)
             extend = False
             if extend:
-                etids = arholy.extend_fit(tcent, idpix, idwave, llist)
-                gdp = etids > 1.
-                idpix = tcent[gdp]
-                idwave = etids[gdp]
+                idpix,idwave = arholy.extend_fit(tcent, idpix, idwave, llist, match_toler=0.3, extrap=1)
             # Holy2
             tids = arholy.run_holy2(tcent, idpix, idwave, npix, llist,
                              p23_frac=p23_frac, ngrid=ngrid, verbose=verbose)
@@ -491,8 +429,14 @@ def main(flg_test):
         test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json',
                    lamps=['ArI','NeI','HgI','KrI','XeI'],
                    ngrid=500, outfil='test_holy1_lrisr600_500.json')
+        plot_ngoodbad('test_holy1_lrisr600_500.json', ['nlines', 'pixcen'],
+                      'Testing Holy1 Input (LRISr 600)', 'test_holy1_lrisr600.pdf')
+        #
+        test_holy1(infil='/holy_grail/lrisb_600_4000_holy.json',
+                   lamps=['ZnI', 'CdI', 'HgI'], p23_frac=0.4,
+                   ngrid=500, outfil='test_holy1_lrisb600.json')
         #test_holy1(infil='lrisb_600_4000_holy.json',
-        #           lamps=['ZnI', 'CdI', 'HgI'],
+        #           lamps=['ZnI', 'CdI', 'HgI'], nlines=[4,5],
         #           ngrid=250, outfil='test_holy1_lrisb600_500.json')
 
     # Holy2 tcent

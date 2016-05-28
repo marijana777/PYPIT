@@ -14,7 +14,7 @@ except ImportError:
 # Logging
 msgs = armsgs.get_logger()
 
-def parse_nist(slf,ion):
+def parse_nist(slf,ion, use_vac=True):
     """Parse a NIST ASCII table.  Note that the long ---- should have
     been commented out and also the few lines at the start.
 
@@ -29,7 +29,10 @@ def parse_nist(slf,ion):
     else:
         root = slf._argflag['run']['pypitdir'] 
     # Find file
-    srch_file = root + '/data/arc_lines/NIST/Stash/'+ion+'_vacuum.ascii'
+    if use_vac:
+        srch_file = root + '/data/arc_lines/NIST/Stash/'+ion+'_vacuum.ascii'
+    else:
+        srch_file = root + '/data/arc_lines/NIST/'+ion+'.ascii'
     nist_file = glob.glob(srch_file)
     if len(nist_file) == 0:
         msgs.error("Cannot find NIST file {:s}".format(srch_file))
@@ -63,8 +66,8 @@ def parse_nist(slf,ion):
     # Return
     return nist_tbl
 
-def load_arcline_list(slf, idx, lines, disperser, wvmnx=None):
-    '''Loads arc line list from NIST files
+def load_arcline_list(slf, idx, lines, disperser, wvmnx=None, use_vac=True):
+    """Loads arc line list from NIST files
     Parses and rejects
 
     Parameters
@@ -82,21 +85,25 @@ def load_arcline_list(slf, idx, lines, disperser, wvmnx=None):
     -------
     alist : Table
       Table of arc lines
-    '''
+    """
     # Get the parse dict
     parse_dict = load_parse_dict()
     # Read rejection file
     if slf is None:
         root = '/Users/xavier/local/Python/PYPIT'
     else:
-        root = slf._argflag['run']['pypitdir'] 
-    with open(root+'/data/arc_lines/rejected_lines.yaml', 'r') as infile:
+        root = slf._argflag['run']['pypitdir']
+    if use_vac:
+        rej_file = 'rejected_lines.yaml'
+    else:
+        rej_file = 'rejected_lines_air.yaml'
+    with open(root+'/data/arc_lines/'+rej_file, 'r') as infile:
         rej_dict = yaml.load(infile)
     # Loop through the NIST Tables
     tbls = []
     for iline in lines:
         # Load
-        tbl = parse_nist(slf,iline)
+        tbl = parse_nist(slf,iline, use_vac=use_vac)
         # Parse
         if iline in parse_dict.keys():
             tbl = parse_nist_tbl(tbl,parse_dict[iline])

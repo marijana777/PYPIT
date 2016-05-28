@@ -161,8 +161,8 @@ def run_holy2(tcent, idpix, idwave, npix, llist, noncalib=None, ngrid=100,
     for kk,ipix in enumerate(tcent):
         diff = np.abs(match_pix-ipix)
         nclose = np.sum(diff < close_tol)
-        if verbose:
-            print('min for {:g} is {:g}'.format(ipix, np.min(diff)))
+        #if verbose:
+        #    print('min for {:g} is {:g}'.format(ipix, np.min(diff)))
         if (np.min(diff) < match_tol):
             if nclose == 1:
                 tids[kk] = llist[np.argmin(diff)]
@@ -227,12 +227,24 @@ def holy_cross_lines(pix_img, wv_to_pix, max_off=5., two_inv_sigma_sq=2./4):
     # Return
     return metric
 
-def extend_fit(tcent, idpix, idwv, llist, match_toler=1.):
+
+def extend_fit(tcent, idpix, idwv, llist, match_toler=1., extrap=1):
     """ Same underlying algorithm for extending the fit as in ararc.simple_calib
+    Parameters
+    ----------
+    tcent
+    idpix
+    idwv
+    llist
+    match_toler
+
     Returns
     -------
 
     """
+    # Init
+    min_in, max_in = np.min(idwv), np.max(idwv)
+    nid = len(idwv)
     # Indices for initial fit
     ifit = []
     for ipix in idpix:
@@ -245,12 +257,14 @@ def extend_fit(tcent, idpix, idwv, llist, match_toler=1.):
     all_ids[ifit] = idwv
     #all_idsion[ifit] = idsion[gd_str]
     # Fit
-    n_order = 2
+    n_order = min(2, nid-2)
     n_final = 3
     func = 'polynomial'
     flg_quit = False
     nsig_rej = 3.
     fmin, fmax = -1., 1.
+
+    # Now extrapolate
     while (n_order <= n_final) and (flg_quit is False):
         # Fit with rejection
         xfit, yfit = tcent[ifit], all_ids[ifit]
@@ -268,6 +282,7 @@ def extend_fit(tcent, idpix, idwv, llist, match_toler=1.):
                 #all_idsion[ss] = llist['Ion'][imn]
                 ifit.append(ss)
         # Keep unique ones
+        debugger.set_trace()
         ifit = np.unique(np.array(ifit,dtype=int))
         # Increment order
         if n_order < n_final:
@@ -275,5 +290,125 @@ def extend_fit(tcent, idpix, idwv, llist, match_toler=1.):
         else:
             # This does 2 iterations at the final order
             flg_quit = True
+    # Interp if possible
+    debugger.set_trace()
     # Return
     return all_ids
+
+
+def add_lines(itcent, idpix, idwv, llist, itoler=2., nextrap=1, verbose=False):
+    """Attempt to identify and add additional goodlines
+
+    Parameters
+    ----------
+    id_dict : dict
+      dict of ID info
+    pixpk : ndarray
+      Pixel locations of detected arc lines
+    toler : float
+      Tolerance for a match (pixels)
+    gd_lines : ndarray
+      array of expected arc lines to be detected and identified
+    inpoly : int, optional
+      Order of polynomial for fitting for initial set of lines
+
+    Returns
+    -------
+    id_dict : dict
+      Filled with complete set of IDs and the final polynomial fit
+    """
+    # Insure these are sorted
+    tcent = itcent.copy()
+    tcent.sort()
+    minp_in, maxp_in = np.min(idpix), np.max(idpix)
+    func = 'polynomial'
+    nsig_rej = 2.5
+    fmin, fmax = -1., 1.
+
+    # Indices for initial IDs
+    ifit = []
+    for ipix in idpix:
+        ifit.append(np.argmin(np.abs(ipix-tcent)))
+    ifit = np.array(ifit)
+    if len(ifit) < 3:
+        raise ValueError("This is not a good idea..")
+
+    # TODO
+    #  First try to interpolate to add 1 or more lines
+
+    # Now try to extrapolate
+    # TODO
+    #  First try to interpolate to add 1 or more lines
+    all_ids = -999.*np.ones(len(tcent))
+    all_ids[ifit] = idwv
+    n_order = min(2, len(idwv)-2)
+    xfit, yfit = tcent[ifit], all_ids[ifit]
+    mask, fit = arutils.robust_polyfit(xfit, yfit, n_order, function=func, sigma=nsig_rej, minv=fmin, maxv=fmax)
+    # Edges
+    ilow = np.min(ifit)
+    ihi = np.max(ifit)
+    pos=True
+
+    # Loop on additional lines for identification
+    nsuccess = 0
+    allfit = list(ifit)
+    toler = itoler
+    while nsuccess < nextrap:
+        # index to add (step on each side)
+        if pos:
+            ihi += 1
+            inew = ihi
+            pos=False
+        else:
+            ilow -= 1
+            inew = ilow
+            pos=True
+        if (ilow < 0) & (ihi > (tcent.size-1)):
+            if verbose:
+                print("Not enough matches with tolerance={:g}. Doubling".format(toler))
+            toler *= 2.
+            if toler > 10.:
+                debugger.set_trace()
+                print("I give up")
+                break
+            allfit = list(ifit)
+            ilow = np.min(ifit)
+            ihi = np.max(ifit)
+            pos=True
+            continue
+        if (inew < 0) or (inew > (tcent.size-1)):  # Off ends
+            continue
+        # New line
+        new_pix = tcent[inew]
+        # newwv
+        newwv = arutils.func_val(fit, new_pix, func, minv=fmin, maxv=fmax)
+        # Match
+        mnm = np.min(np.abs(llist-newwv))
+        if mnm > np.abs(toler*fit[1]):
+            print("No match for {:g}, mnm={:g}".format(new_pix, mnm/fit[1]))
+            continue
+        # TODO
+        # Make sure there are not two lines close by here
+
+        # REFIT and check RMS
+        chkifit = np.array(allfit + [inew])
+        imin = np.argmin(np.abs(llist-newwv))
+        all_ids[inew] = llist[imin]
+        xfit, yfit = tcent[chkifit], all_ids[chkifit]
+        mask, chkfit = arutils.robust_polyfit(xfit, yfit, 2, function=func, sigma=nsig_rej, minv=fmin, maxv=fmax)
+        wvfit = arutils.func_val(chkfit, xfit, func)
+        rms = np.sqrt(np.mean((wvfit-yfit)**2))
+        if verbose:
+            print('RMS = {:g}'.format(rms/fit[1]))
+        if rms < 0.1:
+            if verbose:
+                print('Added {:g} at {:g}'.format(llist[imin], new_pix))
+            allfit += [inew]
+        elif verbose:
+            print("Failed RMS test")
+        nsuccess += 1
+    #
+    new_idpix = tcent[allfit]
+    new_idwv = all_ids[allfit]
+    # Return
+    return new_idpix, new_idwv
