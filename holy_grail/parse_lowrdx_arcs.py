@@ -191,5 +191,5 @@ def generate_hdf(sav_file, lamps, outfil, dtoler=0.6):
 if __name__ == '__main__':
 
     # LRISb 600
-    generate_hdf('lris_blue_600.sav', ['ZnI', 'CdI', 'HgI'], 'test_arcs/LRISb_600.hdf5')
+    generate_hdf('lris_blue_600.sav', ['ZnI', 'CdI', 'HgI', 'NeI', 'ArI'], 'test_arcs/LRISb_600.hdf5')
 
