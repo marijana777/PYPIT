@@ -91,6 +91,9 @@ def run_holy2(tcent, idpix, idwave, npix, llist, noncalib=None, ngrid=100,
     ends = arutils.func_val(wparam, np.array([0.,npix]), func)
     keep = np.where((llist > ends[0]-extra) & (llist < ends[1]+extra))[0]
     llist = llist[keep]
+    if len(keep) == 0:  # Due to bad input lines
+        msgs.warn("No lines for lineslist.  Bad Holy1 input")
+        return np.zeros(len(tcent))
 
     # Add in non-calib lines
     if noncalib is not None:

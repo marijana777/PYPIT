@@ -104,7 +104,7 @@ def find_peaks(censpec):
     return tampl, tcent, twid, w, yprep
 
 
-def generate_hdf(sav_file, lamps, outfil, dtoler=0.6):
+def generate_hdf(sav_file, instr, lamps, outfil, dtoler=0.6):
     """ Given an input LR IDL save file, generate an hdf5
     IDs arc lines too
 
@@ -129,23 +129,16 @@ def generate_hdf(sav_file, lamps, outfil, dtoler=0.6):
     alist = ararclines.load_arcline_list(None,None, lamps, None)
 
     # Meta data
-    odict = dict(npix=len(s['archive_arc'][0]),
+    mdict = dict(npix=len(s['archive_arc'][0]), instr=instr,
                  lamps=[str(ilamp) for ilamp in lamps],  # For writing to hdf5
                  nspec=len(s['archive_arc']), infil=sav_file, IDairvac='vac')
 
     # Start output
     outh5 = h5py.File(outfil, 'w')
-    # Meta data
-    outh5.create_group('meta')
-    for key in odict.keys():
-        try:
-            outh5['meta'][key] = odict[key]
-        except TypeError:  # Probably a unicode thing
-            debugger.set_trace()
     outh5.create_group('arcs')
 
     # Loop on spectra
-    for ss in range(odict['nspec']):
+    for ss in range(mdict['nspec']):
         sss = str(ss)
         # Spec
         spec = s['archive_arc'][ss]
@@ -155,27 +148,52 @@ def generate_hdf(sav_file, lamps, outfil, dtoler=0.6):
         pixampl = tampl[w]
 
         # Wavelength solution
-        wv_air = cheby_val(s['calib'][ss]['ffit'], np.arange(odict['npix']),
+        wv_air = cheby_val(s['calib'][ss]['ffit'], np.arange(mdict['npix']),
                    s['calib'][ss]['nrm'],s['calib'][ss]['nord'])
+        # Check blue->red or vice-versa
+        if ss == 0:
+            if wv_air[0] > wv_air[-1]:
+                mdict['bluered'] = False
+            else:
+                mdict['bluered'] = True
+
         # Peak waves
         twave_air = cheby_val(s['calib'][ss]['ffit'], pixpk,
                               s['calib'][ss]['nrm'],s['calib'][ss]['nord'])
         # Air to Vac
         twave_vac = arwave.airtovac(twave_air*u.AA)
+        wave_vac = arwave.airtovac(wv_air*u.AA)
         # IDs
         idwv = np.zeros_like(pixpk)
+        idsion = np.array([str('12345')]*len(pixpk))
         for kk,twv in enumerate(twave_vac.value):
             # diff
             diff = np.abs(twv-alist['wave'])
             if np.min(diff) < dtoler:
-                idwv[kk] = alist['wave'][np.argmin(diff)]
+                imin  = np.argmin(diff)
+                idwv[kk] = alist['wave'][imin]
+                idsion[kk] = alist['Ion'][imin]
+        # Red to blue?
+        if mdict['bluered'] is False:
+            pixpk = mdict['npix']-1 - pixpk
+            # Re-sort
+            asrt = np.argsort(pixpk)
+            pixpk = pixpk[asrt]
+            idwv = idwv[asrt]
+            # Reverse
+            spec = spec[::-1]
+            wave_vac = wave_vac[::-1]
         # Output
         outh5['arcs'].create_group(sss)
         # Datasets
+        outh5['arcs'][sss]['wave'] = wave_vac
+        outh5['arcs'][sss]['wave'].attrs['airvac'] = 'vac'
         outh5['arcs'][sss]['spec'] = spec
+        outh5['arcs'][sss]['spec'].attrs['flux'] = 'counts'
         outh5['arcs'][sss]['pixpk'] = pixpk
         outh5['arcs'][sss]['ID'] = idwv
         outh5['arcs'][sss]['ID'].attrs['airvac'] = 'vac'
+        outh5['arcs'][sss]['Ion'] = idsion
         # LR wavelengths
         outh5['arcs'][sss]['LR_wave'] = wv_air
         outh5['arcs'][sss]['LR_wave'].attrs['airvac'] = 'air'
@@ -183,6 +201,14 @@ def generate_hdf(sav_file, lamps, outfil, dtoler=0.6):
         outh5['arcs'][sss].create_group('LR_fit')
         for key in ctbl.keys():
             outh5['arcs'][sss]['LR_fit'][key] = ctbl[ss][key]
+
+    # Meta data
+    outh5.create_group('meta')
+    for key in mdict.keys():
+        try:
+            outh5['meta'][key] = mdict[key]
+        except TypeError:  # Probably a unicode thing
+            debugger.set_trace()
     # Close
     outh5.close()
     print('Wrote {:s}'.format(outfil))
@@ -191,5 +217,5 @@ def generate_hdf(sav_file, lamps, outfil, dtoler=0.6):
 if __name__ == '__main__':
 
     # LRISb 600
-    generate_hdf('lris_blue_600.sav', ['ZnI', 'CdI', 'HgI', 'NeI', 'ArI'], 'test_arcs/LRISb_600.hdf5')
+    generate_hdf('lris_blue_600.sav', 'LRISb_600', ['ZnI', 'CdI', 'HgI', 'NeI', 'ArI'], 'test_arcs/LRISb_600.hdf5')
 
