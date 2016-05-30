@@ -306,7 +306,9 @@ def set_ids_holy2(tcent, all_idpix, all_idwv):
     # Return
     return tmsk, twv
 
-def main(arc_file, ntrials, outfil, seed=1234, use_holy1=False, verbose=False):
+
+def main(arc_file, ntrials, outfil, seed=1234, use_holy1=False, verbose=False,
+         ngrid=500):
     """
     Parameters
     ----------
@@ -375,7 +377,7 @@ def main(arc_file, ntrials, outfil, seed=1234, use_holy1=False, verbose=False):
 
         # HOLY 2
         tids = arholy.run_holy2(tcent, idpix, idwave, ameta['npix'], llist,
-                                ngrid=500, verbose=verbose)
+                                ngrid=ngrid, verbose=verbose)
                                 #p23_frac=p23_frac, ngrid=ngrid, verbose=verbose)
         tdict['ids_2'] = tids
         # Evaluate
@@ -392,8 +394,9 @@ def main(arc_file, ntrials, outfil, seed=1234, use_holy1=False, verbose=False):
 
 # Command line execution
 if __name__ == '__main__':
+    print("SHOULD GENERATE A PARAM FILE FOR EACH TEST (YAML or JSON)")
     arc_file = 'LRISb_600.hdf5'
     outfil = 'output/LRISb_600_tests.hdf5'
     outfig = 'output/LRISb_600_tests.pdf'
-    #main(arc_file, 200, outfil)
+    main(arc_file, 300, outfil, ngrid=800)
     fig_holytest(arc_file, outfil, outfig)

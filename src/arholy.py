@@ -388,7 +388,8 @@ def add_lines(itcent, idpix, idwv, llist, itoler=2., nextrap=1, verbose=False):
         # Match
         mnm = np.min(np.abs(llist-newwv))
         if mnm > np.abs(toler*fit[1]):
-            print("No match for {:g}, mnm={:g}".format(new_pix, mnm/fit[1]))
+            if verbose:
+                print("No match for {:g}, mnm={:g}".format(new_pix, mnm/fit[1]))
             continue
         # TODO
         # Make sure there are not two lines close by here
