@@ -408,9 +408,9 @@ def add_lines(itcent, idpix, idwv, llist, itoler=2., nextrap=1, verbose=False):
             if verbose:
                 print('Added {:g} at {:g}'.format(llist[imin], new_pix))
             allfit += [inew]
+            nsuccess += 1
         elif verbose:
             print("Failed RMS test")
-        nsuccess += 1
     #
     new_idpix = tcent[allfit]
     new_idwv = all_ids[allfit]
