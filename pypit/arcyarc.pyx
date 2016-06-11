@@ -639,6 +639,54 @@ def find_closest(np.ndarray[DTYPE_t, ndim=1] arclist not None,
         else:
             return arclist[wa]
 
+
+def find_linear(np.ndarray[DTYPE_t, ndim=2] detid not None,
+				np.ndarray[DTYPE_t, ndim=2] wavid not None,
+				double tolerance):
+	"""
+	Mask lines that deviate by at least 1 pixel from the best linear solution for each pattern
+	tolerance = the allowed tolerance in units of pixels
+	"""
+	cdef int numsol, numidx
+	cdef int s, i, j, k
+	cdef double grad, intc
+	cdef int bsti, bstj, num
+	cdef double bval, diff
+
+	numsol = detid.shape[0]
+	numidx = detid.shape[1]
+
+	cdef np.ndarray[ITYPE_t, ndim=2] mskid = np.ones((numsol,numidx), dtype=ITYPE)
+
+	for s in range(numsol):
+		bsti = -1
+		bstj = -1
+		bval = 0
+		for i in range(0, numidx-1):
+			for j in range(i+1, numidx):
+				grad = (wavid[s,i]-wavid[s,j])/(detid[s,i]-detid[s,j])
+				intc = wavid[s,i] - grad*detid[s,i]
+				# Check which pixels are within the tolerance
+				num = 0
+				for k in range(numidx):
+					diff = detid[s,k] - ((wavid[s,k]-intc)/grad)
+					if diff < 0.0: diff *= -1.0
+					if diff < tolerance:
+						num += 1
+				if bsti == -1 or num > bval:
+					bval = num
+					bsti = i
+					bstj = j
+		grad = (wavid[s,bsti]-wavid[s,bstj])/(detid[s,bsti]-detid[s,bstj])
+		intc = wavid[s,bsti] - grad*detid[s,bsti]
+		for k in range(numidx):
+			diff = detid[s,k] - ((wavid[s,k]-intc)/grad)
+			if diff < 0.0: diff *= -1.0
+			if diff < tolerance:
+				mskid[s,k] = 0
+	return mskid
+
+
 #@cython.boundscheck(False)
 def find_nearest(np.ndarray[DTYPE_t, ndim=1] pixels not None,
                 np.ndarray[DTYPE_t, ndim=1] ppix not None,
