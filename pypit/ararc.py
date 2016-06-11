@@ -272,6 +272,8 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
       The fraction of the detector that the central wavelength can be determined.
 
     """
+    # Set the tolerance for acceptable identifications (in pixels)
+    tolerance = 0.7
 
     # Get the number of pixels in the dispersion direction
     npixels = slf._msarc[det-1].shape[0]
@@ -301,6 +303,10 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
     linelist.sort()
 
     # Generate list patterns
+    msgs.info("Generating linelist patterns")
+    OutOfRange = 1.01*(np.max(linelist)-np.min(linelist))
+    lstpatt, lstidx = arcyarc.patterns_sext(linelist, numsearch, OutOfRange)
+    msgs.info("Number of reference patterns: {0:d}".format(lstidx.shape[0]))
     # Generate list tree
     msgs.info("Generating KDTree")
     lsttree = KDTree(lstpatt, leafsize=30)
@@ -308,20 +314,23 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
     # Test both possibilities:
     # (tt=0) pixels correlate with wavelength, and
     # (tt=1) pixels anticorrelate with wavelength
+    solscore = np.array([])
+    solcorel = np.array([])
+    solwaves = []
+    solwmask = []
     for tt in range(2):
         if tt == 0:
+            msgs.info("Assuming pixels correlate with wavelength")
             detlines = detlines[asrt]
             detampls = detampls[asrt]
         else:
+            msgs.info("Assuming pixels anticorrelate with wavelength")
             # Reverse the order of the pixels
             detlines = detlines[::-1]
             detampls = detampls[::-1]
         # Generate the patterns and store indices
-        OutOfRange = 1.01*(np.max(linelist)-np.min(linelist))
-        lstpatt, lstidx = arcyarc.patterns_sext(linelist, numsearch, OutOfRange)
         detpatt, detidx = arcyarc.patterns_sext(detlines, numsearch, maxlin*npixels)
-        msgs.info("Number of reference patterns: {0:d}".format(lstidx.shape[0]))
-        msgs.info("Number of detected patterns: {0:d}".format(detidx.shape[0]))
+        msgs.info("Number of pixel patterns: {0:d}".format(detidx.shape[0]))
 
         # Find the difference between the end point "reference" pixels
         ddiff = detlines[detidx[:, -1]] - detlines[detidx[:, 0]]
@@ -334,11 +343,11 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
         err = 2.0/np.min(ddiff)
 
         # Query the detections tree
-        msgs.info("Querying")
+        msgs.info("Cross-matching patterns")
         res = dettree.query_ball_tree(lsttree, r=err)
 
         # Assign wavelengths to each pixel
-        msgs.info("Identifying wavelengths")
+        msgs.info("Identifying candidate wavelengths")
         nrows = len(res)
         ncols = sum(map(len, res))
         nindx = detidx.shape[1]
@@ -378,15 +387,13 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
         msgs.info("Finding peaks of the probability density function")
         tpdf = wvpdf
         dtst = tpdf[1:]-tpdf[:-1]
-        wmx = np.argwhere((dtst[1:]<0.0) & (dtst[:-1]>0.0)).flatten()
+        wmx = np.argwhere((dtst[1:] < 0.0) & (dtst[:-1] > 0.0)).flatten()
         msgs.info("Identified {0:d} peaks in the PDF".format(wmx.size))
         mxsrt = np.argsort(tpdf[wmx+1])[-nsolsrch:]
         # Estimate of the central wavelengths
         cwest = allwave[wmx+1][mxsrt][::-1]
 
-        solscore = np.ones(cwest.size)
-        solwaves = []
-        solwmask = []
+        tsolscore = np.ones(cwest.size)
         for i in range(cwest.size):
             msgs.info("Testing solution {0:d}/{1:d}".format(i+1, cwest.size))
             w = np.where((wvcent >= cwest[i]-bwest/2.0) & (wvcent <= cwest[i]+bwest/2.0))[0]
@@ -402,13 +409,14 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
             detid = wvindx[ind, 1].astype(np.int)
             linid = linelist[wvindx[ind, 2].astype(np.int)]
             # Mask lines that deviate by at least 'tolerance' pixels from the best linear solution for each pattern
-            tolerance = 0.7
             mskid = arcyarc.find_linear(detlines[detid].reshape(-1, nindx), linid.reshape(-1, nindx), tolerance)
             ww = np.where(mskid.flatten() == 0)
             detid = detid[ww]
             linid = linid[ww]
             if ww[0].size == 0:
-                solscore[i] = 0.0
+                tsolscore[i] = 0.0
+                solwaves.append(None)
+                solwmask.append(None)
                 continue
             # Prepare the arrays used to store line identifications
             mskdone = np.zeros(detlines.size)
@@ -453,7 +461,17 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
             wll = np.where((linelist > wmin-wdiff) & (linelist < wmax+wdiff))[0]
             wavidx = arcyarc.brute_force_solve(yval, ll[wll], coeff, npixels, lim)
             wavids = linelist[wll[wavidx]]
+            # Fit the solution with a polynomial
 
+            # Re-identify the lines based on this fit
+
+            # Calculate the score for this solution
+
+            # Store this solution for later comparison
+
+        # Append the solution
+        solscore = np.append(solscore, tsolscore)
+        solcorel = np.append(solcorel, tt*np.ones_like(tsolscore))
 
     return ids
 
