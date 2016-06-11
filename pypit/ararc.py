@@ -255,7 +255,7 @@ def setup_param(slf, sc, det, fitsdict):
     return arcparam
 
 
-def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2):
+def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npixcen=0.005):
     """ Automatically identify arc lines
 
     Parameters
@@ -268,11 +268,15 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2):
       Number of adjacent lines to use when deriving patterns
     maxlin : float 0-1
       The fraction of the detector that is considered linear
+    npixcen : float
+      The fraction of the detector that the central wavelength can be determined.
 
     """
 
     # Get the number of pixels in the dispersion direction
     npixels = slf._msarc[det-1].shape[0]
+    # Convert npixcen to pixels
+    npixcen *= npixels
 
     # Extract the arc
     msgs.work("Detecting lines..")
@@ -285,129 +289,172 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2):
 
     # Sort the detected lines
     asrt = np.argsort(detlines)
-    detlines = detlines[asrt]
-    detampls = detampls[asrt]
 
     # Load the linelist
     idx = slf._spect['arc']['index'][sc]
     disperser = fitsdict["disperser"][idx[0]]
+    lamps = slf._argflag['arc']['calibrate']['lamps']
     linelist = ararclines.load_arcline_list(slf, idx, lamps, disperser, wvmnx=None)
     ll = linelist['wave'].data
     linelist = np.array(ll[np.where(~ll.mask)])
+    # Sort the linelist
     linelist.sort()
 
-    # Generate the patterns and store indices
-    OutOfRange = 1.01*(np.max(linelist)-np.min(linelist))
-    lstpatt, lstidx = arcyarc.patterns_sext(linelist, numsearch, OutOfRange)
-    detpatt, detidx = arcyarc.patterns_sext(detlines, numsearch, maxlin*npixels)
-    msgs.info("Number of reference patterns: {0:d}".format(lstidx.shape[0]))
-    msgs.info("Number of detected patterns: {0:d}".format(detidx.shape[0]))
-
-    # Find the difference between the end point "reference" pixels
-    ddiff = detlines[detidx[:, -1]] - detlines[detidx[:, 0]]
-
-    # Create the KDTrees
-    msgs.info("Creating Trees")
+    # Generate list patterns
+    # Generate list tree
+    msgs.info("Generating KDTree")
     lsttree = KDTree(lstpatt, leafsize=30)
-    dettree = KDTree(detpatt, leafsize=30)
 
-    # Set the search error to be 1 pixel
-    err = 2.0/np.min(ddiff)
+    # Test both possibilities:
+    # (tt=0) pixels correlate with wavelength, and
+    # (tt=1) pixels anticorrelate with wavelength
+    for tt in range(2):
+        if tt == 0:
+            detlines = detlines[asrt]
+            detampls = detampls[asrt]
+        else:
+            # Reverse the order of the pixels
+            detlines = detlines[::-1]
+            detampls = detampls[::-1]
+        # Generate the patterns and store indices
+        OutOfRange = 1.01*(np.max(linelist)-np.min(linelist))
+        lstpatt, lstidx = arcyarc.patterns_sext(linelist, numsearch, OutOfRange)
+        detpatt, detidx = arcyarc.patterns_sext(detlines, numsearch, maxlin*npixels)
+        msgs.info("Number of reference patterns: {0:d}".format(lstidx.shape[0]))
+        msgs.info("Number of detected patterns: {0:d}".format(detidx.shape[0]))
 
-    # Query the detections tree
-    msgs.info("Querying")
-    res = dettree.query_ball_tree(lsttree, r=err)
+        # Find the difference between the end point "reference" pixels
+        ddiff = detlines[detidx[:, -1]] - detlines[detidx[:, 0]]
 
-    # Assign wavelengths to each pixel
-    msgs.info("Identifying wavelengths")
-    waveid = [np.array([]) for x in detlines]
-    nrows = len(res)
-    ncols = sum(map(len, res))
-    nindx = detidx.shape[1]
-    wvdisp = np.zeros(ncols)
-    wvcent = np.zeros(ncols)
-    wvindx = -1*np.ones((ncols*nindx, 3))
-    cnt = 0
-    for x in range(nrows):
-        if x+1%100 == 0: print x+1, "/", nrows
-        for y in range(len(res[x])):
-            dx = detlines[detidx[x, -1]] - detlines[detidx[x, 0]]
-            dp = linelist[lstidx[res[x][y], -1]] - linelist[lstidx[res[x][y], 0]]
+        # Create the KDTrees
+        msgs.info("Creating KDTree of detected lines")
+        dettree = KDTree(detpatt, leafsize=30)
+
+        # Set the search error to be 1 pixel
+        err = 2.0/np.min(ddiff)
+
+        # Query the detections tree
+        msgs.info("Querying")
+        res = dettree.query_ball_tree(lsttree, r=err)
+
+        # Assign wavelengths to each pixel
+        msgs.info("Identifying wavelengths")
+        nrows = len(res)
+        ncols = sum(map(len, res))
+        nindx = detidx.shape[1]
+        wvdisp = np.zeros(ncols)
+        wvcent = np.zeros(ncols)
+        wvindx = -1*np.ones((ncols*nindx, 3))
+        cnt = 0
+        for x in range(nrows):
+            if x+1%100 == 0: print x+1, "/", nrows
+            for y in range(len(res[x])):
+                dx = detlines[detidx[x, -1]] - detlines[detidx[x, 0]]
+                dp = linelist[lstidx[res[x][y], -1]] - linelist[lstidx[res[x][y], 0]]
+                try:
+                    null, cgrad = arutils.robust_polyfit(detlines[detidx[x,:]], linelist[lstidx[res[x][y],:]], 1, sigma=2.0)
+                    wvdisp[cnt] = cgrad[1]
+                except:
+                    wvdisp[cnt] = (dp/dx)
+                coeff = np.polyfit(detlines[detidx[x, :]], linelist[lstidx[res[x][y]]], 2)
+                wvcent[cnt] = np.polyval(coeff, npixels/2.0)
+                for i in range(nindx):
+                    wvindx[cnt*nindx+i, 0] = cnt
+                    wvindx[cnt*nindx+i, 1] = detidx[x, i]
+                    wvindx[cnt*nindx+i, 2] = lstidx[res[x][y], i]
+                cnt += 1
+
+        wvs = wvcent[np.where(wvcent != 0.0)]
+        wvd = wvdisp[np.where(wvdisp != 0.0)]
+        allwave = np.linspace(wvs.min(), wvs.max(), (np.max(linelist)-np.min(linelist))/wvd.min())
+        bwest = npixcen*np.median(wvd)  # Assume the central wavelength can be determined within npixcen
+        msgs.info("Constructing KDE with bandwidth {0:f}".format(bwest))
+        wvkde = KernelDensity(bandwidth=bwest)
+        wvkde.fit(wvs[:, np.newaxis])
+        msgs.info("Constructing probability density function")
+        wvpdf = np.exp(wvkde.score_samples(allwave[:, np.newaxis]))
+
+        wvs.sort()
+        msgs.info("Finding peaks of the probability density function")
+        tpdf = wvpdf
+        dtst = tpdf[1:]-tpdf[:-1]
+        wmx = np.argwhere((dtst[1:]<0.0) & (dtst[:-1]>0.0)).flatten()
+        msgs.info("Identified {0:d} peaks in the PDF".format(wmx.size))
+        mxsrt = np.argsort(tpdf[wmx+1])[-nsolsrch:]
+        # Estimate of the central wavelengths
+        cwest = allwave[wmx+1][mxsrt][::-1]
+
+        solscore = np.ones(cwest.size)
+        solwaves = []
+        solwmask = []
+        for i in range(cwest.size):
+            msgs.info("Testing solution {0:d}/{1:d}".format(i+1, cwest.size))
+            w = np.where((wvcent >= cwest[i]-bwest/2.0) & (wvcent <= cwest[i]+bwest/2.0))[0]
+            # Only use potential solutions that have consistent dispersions
             try:
-                null, cgrad = arutils.robust_polyfit(detlines[detidx[x,:]], linelist[lstidx[res[x][y],:]], 1, sigma=2.0)
-                wvdisp[cnt] = cgrad[1]
+                msk, coeff = arutils.robust_polyfit(np.ones(w.size), wvdisp[w], 0, sigma=2.0)
+                wm = np.where(msk == 0)
+                if wm[0].size != 0:
+                    w = w[wm]
             except:
-                wvdisp[cnt] = (dp/dx)
-            coeff = np.polyfit(detlines[detidx[x, :]], linelist[lstidx[res[x][y]]], 2)
-            wvcent[cnt] = np.polyval(coeff, npixels/2.0)
-            for i in range(nindx):
-                wvindx[cnt*nindx+i, 0] = cnt
-                wvindx[cnt*nindx+i, 1] = detidx[x, i]
-                wvindx[cnt*nindx+i, 2] = lstidx[res[x][y], i]
-            cnt += 1
+                pass
+            ind = np.in1d(wvindx[:, 0], w)
+            detid = wvindx[ind, 1].astype(np.int)
+            linid = linelist[wvindx[ind, 2].astype(np.int)]
+            # Mask lines that deviate by at least 'tolerance' pixels from the best linear solution for each pattern
+            tolerance = 0.7
+            mskid = arcyarc.find_linear(detlines[detid].reshape(-1, nindx), linid.reshape(-1, nindx), tolerance)
+            ww = np.where(mskid.flatten() == 0)
+            detid = detid[ww]
+            linid = linid[ww]
+            if ww[0].size == 0:
+                solscore[i] = 0.0
+                continue
+            # Prepare the arrays used to store line identifications
+            mskdone = np.zeros(detlines.size)
+            wavdone = np.zeros(detlines.size)
+            for j in range(detlines.size):
+                # Find all ids for this line
+                wdid = np.where(detid == j)
+                lineid = linid[wdid]
+                # Find most common wavelength id for this line
+                if lineid.size != 0:
+                    c = Counter(wv for wv in lineid)
+                    comm = c.most_common(1)
+                    wavdone[j] = comm[0][0]
+                    mskdone[j] = 1
+            # Now perform a brute force identification on the detlines and the linelist
+            # Fit the known pixels with a cubic polynomial
+            yval = detlines/npixels
+            wmsk = np.where(mskdone == 1)
 
-    wvs = wvcent[np.where(wvcent != 0.0)]
-    wvd = wvdisp[np.where(wvdisp != 0.0)]
-    allwave = np.linspace(wvs.min(),wvs.max(),(np.max(linelist)-np.min(linelist))/wvd.min())
-    bwest = npixcen*np.median(wvd)  # Assume the central wavelength can be determined within npixcen
-    msgs.info("Constructing KDE with bandwidth {0:f}".format(bwest))
-    wvkde = KernelDensity(bandwidth=bwest)
-    wvkde.fit(wvs[:, np.newaxis])
-    msgs.info("Constructing probability density function")
-    wvpdf = np.exp(wvkde.score_samples(allwave[:, np.newaxis]))
+            # Determine (roughly) the minimum and maximum wavelengths
+            coeff = arutils.func_fit(yval[wmsk], wavdone[wmsk], "polynomial", 1)
+            wmnmx = arutils.func_val(coeff, np.array([0.0, 1.0]), "polynomial")
+            wmin, wmax = wmnmx[0], wmnmx[1]
 
-    wvs.sort()
-    msgs.info("Finding peaks of the probability density function")
-    tpdf = wvpdf
-    dtst = tpdf[1:]-tpdf[:-1]
-    wmx = np.argwhere((dtst[1:]<0.0)&(dtst[:-1]>0.0)).flatten()
-    msgs.info("Identified {0:d} peaks in the PDF".format(wmx.size))
-    mxsrt = np.argsort(tpdf[wmx+1])[-nsolsrch:]
-    # Estimate of the central wavelengths
-    cwest = allwave[wmx+1][mxsrt][::-1]
+            wavmean = np.mean(wavdone[wmsk])
+            xval = (wavdone - wavmean)/(wmax-wmin)
+            ll = (linelist - wavmean)/(wmax-wmin)
+            # Find the first and second coefficients of the polynomial fitting
+            # These coefficients are given by (p0) the value of the cubic fit
+            # at the mean wavelength of the id'ed pixels, and (p1) the value of
+            # the derivative of the cubic fit at the mean wavelength of the id'ed
+            # pixels.
+            coeff = arutils.func_fit(xval[wmsk], yval[wmsk], "polynomial", 3)
+            # ... and we only need the first two coefficients
+            coeff = coeff[:2]
 
-    solscore = np.ones(cwest.size)
-    solwaves = []
-    solwmask = []
-    for i in range(cwest.size):
-        print "Testing solution {0:d}/{1:d}".format(i+1, cwest.size)
-        w = np.where((wvcent >= cwest[i]-bwest/2.0) & (wvcent <= cwest[i]+bwest/2.0))[0]
-        # Only use potential solutions that have consistent dispersions
-        try:
-            msk, coeff = arutils.robust_polyfit(np.ones(w.size), wvdisp[w], 0, sigma=2.0)
-            wm = np.where(msk == 0)
-            if wm[0].size != 0:
-                w = w[wm]
-        except:
-            pass
-        ind = np.in1d(wvindx[:, 0], w)
-        detid = wvindx[ind, 1].astype(np.int)
-        linid = linelist[wvindx[ind, 2].astype(np.int)]
-        # Mask lines that deviate by at least 'tolerance' pixels from the best linear solution for each pattern
-        tolerance = 0.7
-        mskid = arcyarc.find_linear(detlines[detid].reshape(-1, nindx), linid.reshape(-1, nindx), tolerance)
-        ww = np.where(mskid.flatten() == 0)
-        detid = detid[ww]
-        linid = linid[ww]
-        if ww[0].size == 0:
-            solscore[i] = 0.0
-            continue
-        # Prepare the arrays used to store line identifications
-        mskdone = np.zeros(detlines.size)
-        mskgood = np.zeros(detlines.size)  # 1 if detected line is a good value, 0 if it's bad
-        wavdone = np.zeros(detlines.size)
-        for j in range(detlines.size):
-            # Find all ids for this line
-            wdid = np.where(detid == j)
-            lineid = linid[wdid]
-            # Find most common wavelength id for this line
-            if lineid.size != 0:
-                c = Counter(wv for wv in lineid)
-                comm = c.most_common(1)
-                wavdone[j] = comm[0][0]
-                mskdone[j] = 1.0
-                mskgood[j] = 1.0
-    now brute force on -> detlines, wavdone, msk
+            msgs.info("Commencing brute force arc line identification")
+            # Set a limit on the deviation of the final solution from linear
+            # 0.3 = 30 per cent deviation from a linear solution
+            lim = 0.3
+            wdiff = (wmax-wmin)*lim
+            wll = np.where((linelist > wmin-wdiff) & (linelist < wmax+wdiff))[0]
+            wavidx = arcyarc.brute_force_solve(yval, ll[wll], coeff, npixels, lim)
+            wavids = linelist[wll[wavidx]]
+
+
     return ids
 
 

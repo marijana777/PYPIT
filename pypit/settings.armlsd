@@ -47,7 +47,7 @@ arc load extracted     False         # If the master arc has previously been ext
 arc load calibrated    False         # If the extracted arc have previously been calibrated and saved, load the calibration files
 arc calibrate nfitpix  5             # Number of pixels to fit when deriving the centroid of the arc lines (an odd number is best)
 arc calibrate idfile wave_ThAr_3100-11000.npy  # Name of arc identification file. The default is for a ThAr arc line identification
-arc calibrate linelist arclist.ThAr # name of the file containing a list of all arc lines to be identified
+arc calibrate lamps [HgI,NeI,ArI]    # name of the ions used for the wavelength calibration
 arc calibrate method simple          # What method should be used to fit the individual arc lines (options are: fit, simple); fit is perhaps the most accurate; simple uses a polynomial fit (to the log of a gaussian), is the fastest and is reliable
 arc calibrate detection 6.0         # How significant should the arc line detections be (in units of a standard deviation)
 arc calibrate numsearch 20           # Number of brightest arc lines to search for preliminary identification
