@@ -466,8 +466,12 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
             # Re-identify the lines based on this fit
 
             # Calculate the score for this solution
+            score = 1.0/np.std(wavdone[wgd]-ymodel[wgd])
+            solscore[i] = score
 
             # Store this solution for later comparison
+            solwaves.append(wavdone.copy())
+            solwmask.append(mskdone.copy())
 
         # Append the solution
         solscore = np.append(solscore, tsolscore)
