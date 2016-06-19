@@ -461,10 +461,16 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
             wll = np.where((linelist > wmin-wdiff) & (linelist < wmax+wdiff))[0]
             wavidx = arcyarc.brute_force_solve(yval, ll[wll], coeff, npixels, lim)
             wavids = linelist[wll[wavidx]]
+            mskids = np.zeros_like(wavids)
+            mskids[np.where(wavidx == -1)] = 1
             # Fit the solution with a polynomial
-
-            # Re-identify the lines based on this fit
-
+            order = slf._argflag[]
+            coeff = arutils.func_fit(detlines, wavids, "legendre", order, minv=0.0, maxv=npixels-1.0, w=1.0-mskids)
+            model = arutils.func_val(coeff, detlines, "legendre", minv=0.0, maxv=npixels-1.0)
+            # Re-identify the lines based on this fit and then refit
+            wavids = arcyarc.identify(linelist, model)
+            coeff = arutils.func_fit(detlines, wavids, "legendre", order, minv=0.0, maxv=npixels-1.0, w=1.0-mskids)
+            model = arutils.func_val(coeff, detlines, "legendre", minv=0.0, maxv=npixels-1.0)
             # Calculate the score for this solution
             score = 1.0/np.std(wavdone[wgd]-ymodel[wgd])
             solscore[i] = score

@@ -50,6 +50,9 @@ def brute_force_solve(np.ndarray[DTYPE_t, ndim=1] pix not None,
 						np.ndarray[DTYPE_t, ndim=1] coeff not None,
 						double npix, double lim):
 
+	# Note that lim = 1.0 would be very conservative, and would encompass
+	# all possible values.
+
 	cdef int ii, jj, pp, npx, qq, nl
 	cdef int bii, bjj, bidx
 	cdef double bval, tval, bscr, tscr
@@ -59,8 +62,6 @@ def brute_force_solve(np.ndarray[DTYPE_t, ndim=1] pix not None,
 
 	# Define the range of coefficients available
 	cdef int nsz = <int>(lim*npix)
-	# Note that lim = 1.0 would be very conservative, and would encompass
-	# all possible values.
 	cdef np.ndarray[DTYPE_t, ndim=1] cval = np.linspace(-lim, lim, nsz)
 	cdef np.ndarray[DTYPE_t, ndim=1] llp = np.zeros((nl), dtype=DTYPE)
 	cdef np.ndarray[DTYPE_t, ndim=1] ll = np.zeros((nl), dtype=DTYPE)
@@ -101,7 +102,7 @@ def brute_force_solve(np.ndarray[DTYPE_t, ndim=1] pix not None,
 						bidx = qq
 					else:
 						# Because ll is sorted, we can break the loop
-						# here if a worse value isn't found
+						# here if a worse value is found
 						break
 				# Store the best residual of this pixel
 				tscr += bval
@@ -135,7 +136,12 @@ def brute_force_solve(np.ndarray[DTYPE_t, ndim=1] pix not None,
 				# here if a better value isn't found
 				break
 		# Assign the best ID to this pixel
-		ids[pp] = bidx
+		if bval < 0.5:
+		    # ID is within one pixel
+    		ids[pp] = bidx
+    	else:
+    	    # Could not identify the correct wavelength for this pixel
+    	    ids[pp] = -1
 	# Return the best indices
 	return ids
 
@@ -1397,7 +1403,38 @@ def get_signal(np.ndarray[DTYPE_t, ndim=1] pixels not None,
 #######
 
 @cython.boundscheck(False)
-def identify(np.ndarray[DTYPE_t, ndim=1] pixels not None,
+def identify(np.ndarray[DTYPE_t, ndim=1] linelist not None,
+             np.ndarray[DTYPE_t, ndim=1] wavguess not None):
+    cdef int sz_l, sz_w, ll, ww
+    cdef int idx
+    cdef double bst, tst
+
+    sz_w = wavguess.shape[0]
+    sz_l = linelist.shape[0]
+
+    cdef np.ndarray[DTYPE_t, ndim=1] idlist = np.zeros(sz_w, dtype=DTYPE)
+
+    for ww in range(sz_w):
+        bst = wavguess[ww]-linelist[0]
+        if bst < 0.0:
+            bst *= -1.0
+        idx = 0
+        for ll in range(1, sz_l):
+            tst = wavguess[ww]-linelist[ll]
+            if tst < 0.0:
+                tst *= -1.0
+            if tst < bst:
+                bst = tst
+                idx = ll
+            else:
+                # Since linelist is sorted, we can break as soon as a bad solution is found
+                break
+        idlist[ww] = linelist[idx]
+    return idlist
+
+
+@cython.boundscheck(False)
+def identify_old(np.ndarray[DTYPE_t, ndim=1] pixels not None,
                 np.ndarray[DTYPE_t, ndim=1] arclist not None,
                 double srcrng):
     print "I think this is a deprecated function..."
