@@ -448,7 +448,7 @@ def main(flg_test):
         #           lamps=['ArI','NeI','HgI','KrI','XeI'], brute=True, nlines=[4,5],
         #           ngrid=500, outfil='outputs/test_holy2B_holy1_inputs_lrisr600_500.json')
         plot_ngoodbad('outputs/test_holy2B_holy1_inputs_lrisr600_500.json', ['nlines', 'pixcen'],
-                      'Testing Holy2/Holy1 Input (LRISr 600)', 'plots/test_holy2B_holy1_inputs_lrisr600.pdf')
+                      'Testing Holy2B/Holy1 Input (LRISr 600)', 'plots/test_holy2B_holy1_inputs_lrisr600.pdf')
 
     # Holy2 tcent
     if (flg_test % 2**3) >= 2**2:

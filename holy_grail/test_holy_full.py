@@ -309,6 +309,7 @@ def set_ids_holy2(tcent, all_idpix, all_idwv):
 
 def list_bad_ids(test_file, minbad=1):
     """ List the trials with NBAD
+
     Parameters
     ----------
     test_file
