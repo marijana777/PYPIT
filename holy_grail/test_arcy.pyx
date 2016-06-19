@@ -41,9 +41,10 @@ def brute_force_solve(np.ndarray[DTYPE_t, ndim=1] pix not None,
 		ll[qq] = linelist[qq]*linelist[qq]
 		lll[qq] = linelist[qq]*linelist[qq]*linelist[qq]
 
-	# Create a list of the IDs
+	# Create a list of the IDs and offsets
 	#cdef np.ndarray[DTYPE_t, ndim=1] diffids = np.zeros((npx), dtype=DTYPE)
 	cdef np.ndarray[ITYPE_t, ndim=1] ids = np.zeros((npx), dtype=ITYPE)
+	cdef np.ndarray[DTYPE_t, ndim=1] offsets = np.zeros((npx), dtype=DTYPE)
 
 	# Iterate through the brute force calculation
 	for ii in range(nsz):
@@ -108,5 +109,6 @@ def brute_force_solve(np.ndarray[DTYPE_t, ndim=1] pix not None,
 				break
 		# Assign the best ID to this pixel
 		ids[pp] = bidx
-	# Return the best indices
-	return ids
+		offsets[pp] = bval
+	# Return the best indices, offsets, and cval
+	return ids, offsets

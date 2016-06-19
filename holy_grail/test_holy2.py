@@ -31,7 +31,18 @@ except:
     import pdb as debugger
 
 def check_holy2b():
-    tcent = np.array([  140.93689967,   154.42571123,   194.07916869,   205.86298773,
+    """
+    Returns
+    -------
+
+    """
+    root = '/Users/xavier/local/Python/PYPIT'
+    infil='/holy_grail/inputs/lrisr_600_7500_holy.json'
+    wvsoln_fil = root+infil
+    with open(wvsoln_fil) as data_file:
+        wvsoln_dict = json.load(data_file)
+    tcent = np.array(wvsoln_dict['tcent'])
+    tid = np.array([  140.93689967,   154.42571123,   194.07916869,   205.86298773,
          212.86313041,   253.05224277,   272.55370351,   307.26868399,
          335.39219804,   349.2515197 ,   378.94265744,   391.93324683,
          425.84238777,   456.89126564,   481.01486112,   499.6324469 ,
@@ -60,13 +71,19 @@ def check_holy2b():
         1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.])
     ions = ['HgI','ArI','NeI','XeI','KrI']
     linelist = ararclines.load_arcline_list(None, 0, ions, '600/7500', wvmnx=None)
-    ll = linelist['wave'].data
+    ll = np.array(linelist['wave'].data)
     # Run
     msk = mask==0.
-    idpix = tcent[msk]
+    idpix = tid[msk]
     idwave = waves[msk]
-    coeff, resid, wavids = arholy.holy2_brute(tcent, idpix, idwave, 2048, ll)
+    # ORIGINAL
+    wavids, resid = arholy.holy2_brute(tid, idpix, idwave, 2048,
+                                              ll, debug=False, verbose=True)
     assert resid < 0.025
+    # WITH NON-ID lines
+    wavids2, resid2 = arholy.holy2_brute(tcent, idpix, idwave, 2048,
+                                                 ll, debug=False, verbose=True)
+    assert resid2 < 0.03
 
 
 def init_holy2_test(infil, lamps=None):
@@ -225,7 +242,8 @@ def test_basic_holy1_inputs(infil='/holy_grail/lrisr_600_7500_holy.json', verbos
                 idpix,idwave = arholy.extend_fit(tcent, idpix, idwave, llist, match_toler=0.3, extrap=1)
             # Holy2
             if brute:
-                tids = arholy.holy2_brute(tcent, idpix, idwave, npix, llist)
+                tids, _ = arholy.holy2_brute(tcent, idpix, idwave, npix, llist,
+                                             verbose=True)
             else:
                 tids = arholy.run_holy2(tcent, idpix, idwave, npix, llist,
                                  p23_frac=p23_frac, ngrid=ngrid, verbose=verbose)
@@ -355,7 +373,7 @@ def plot_ngoodbad(json_fil, parms, title, outfil, lgd_loc='lower left'):
     ax2.set_ylabel('N_BAD', fontsize=lsz)
 
     # Nparam
-    symbols  = ['o', 's', 'v', 'x', '^']
+    symbols = ['o', 's', 'v', 'x', '^']
     if nparm >= 2:
         # Points use parm0, x is from parm1
         # Parse runs
@@ -426,9 +444,11 @@ def main(flg_test):
         #plot_ngoodbad('outputs/test_holy2_holy1_inputs_lrisb600.json', ['nlines', 'pixcen'],
         #              'Testing Holy2/Holy1 Input (LRISb 600)', 'plots/test_holy2_holy1_inputs_lrisb600.pdf')
         ''' Brute '''
-        test_basic_holy1_inputs(infil='/holy_grail/inputs/lrisr_600_7500_holy.json',
-                   lamps=['ArI','NeI','HgI','KrI','XeI'], brute=True, nlines=[4,5],
-                   ngrid=500, outfil='outputs/test_holy2B_holy1_inputs_lrisr600_500.json')
+        #test_basic_holy1_inputs(infil='/holy_grail/inputs/lrisr_600_7500_holy.json',
+        #           lamps=['ArI','NeI','HgI','KrI','XeI'], brute=True, nlines=[4,5],
+        #           ngrid=500, outfil='outputs/test_holy2B_holy1_inputs_lrisr600_500.json')
+        plot_ngoodbad('outputs/test_holy2B_holy1_inputs_lrisr600_500.json', ['nlines', 'pixcen'],
+                      'Testing Holy2/Holy1 Input (LRISr 600)', 'plots/test_holy2B_holy1_inputs_lrisr600.pdf')
 
     # Holy2 tcent
     if (flg_test % 2**3) >= 2**2:
@@ -440,8 +460,8 @@ if __name__ == '__main__':
 
     if len(sys.argv) == 1:
         flg_test = 0
-        flg_test += 2**0   # Check brute
-        #flg_test += 2**1   # Holy1 inputs
+        #flg_test += 2**0   # Check brute
+        flg_test += 2**1   # Vary Holy1 inputs
     else:
         flg_fig = sys.argv[1]
 

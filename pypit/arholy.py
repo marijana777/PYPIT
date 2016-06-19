@@ -482,14 +482,14 @@ def holy2_brute(tcent, idpix, idwave, npix, llist, debug=False, verbose=False):
 
     # Now send the data away to cython to determine the best solution
     # for the remaining two cofficients by brute force
-    print("Commencing brute Force identification")
+    #print("Commencing brute Force identification")
     start= time.time()
     lim=0.3
     wdiff = (wmax-wmin)*lim
     wll = np.where((llist > wmin-wdiff) & (llist < wmax+wdiff))[0]
     wavidx, offsets = test_arcy.brute_force_solve(yval, ll[wll], coeff, npix, lim)
     end = time.time()
-    print("Execution time:", end-start)
+    #print("Execution time:", end-start)
     #print wavidx
 
     wavids = llist[wll[wavidx]]
@@ -506,7 +506,8 @@ def holy2_brute(tcent, idpix, idwave, npix, llist, debug=False, verbose=False):
     #coeffb = arutils.func_fit(wavids[gdid], tcent[gdid], "polynomial", 3)
     msk, coeff = arutils.robust_polyfit(tcent[gdid], wavids[gdid], 3, function="polynomial")
     mskb, coeffb = arutils.robust_polyfit(wavids[gdid], tcent[gdid], 3, function="polynomial")
-    msgs.info("Masked {:d} IDs".format(np.sum(msk)))
+    if verbose:
+        msgs.info("Masked {:d} IDs".format(np.sum(msk)))
     ymod = arutils.func_val(coeff, xmod, "polynomial")
     pmod = arutils.func_val(coeff, tcent, "polynomial")
     wmod = arutils.func_val(coeffb, wavids, "polynomial")
@@ -517,5 +518,6 @@ def holy2_brute(tcent, idpix, idwave, npix, llist, debug=False, verbose=False):
     resid = np.std(tcent[finalid]-wmod[finalid])
     if verbose:
         print("Pixel residual: {:g}".format(resid))
-    #debugger.set_trace()
-    return coeff, resid, wavids
+    finalwavid = np.zeros_like(tcent)
+    finalwavid[finalid] = wavids[finalid]
+    return finalwavid, resid
