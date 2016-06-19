@@ -432,7 +432,7 @@ def add_lines(itcent, idpix, idwv, llist, itoler=2., nextrap=1, verbose=False):
     return new_idpix, new_idwv
 
 
-def holy2_brute(tcent, idpix, idwave, npix, llist):
+def holy2_brute(tcent, idpix, idwave, npix, llist, debug=False, verbose=False):
     """ RC algorithm for Holy 2
 
     Parameters
@@ -445,8 +445,11 @@ def holy2_brute(tcent, idpix, idwave, npix, llist):
       Wavelengths of identified lines (Holy 1)
     llist : ndarray
       Wavelengths of line linst
+
     Returns
     -------
+    tids : ndarray
+      Identified lines
 
     """
     import time
@@ -484,24 +487,35 @@ def holy2_brute(tcent, idpix, idwave, npix, llist):
     lim=0.3
     wdiff = (wmax-wmin)*lim
     wll = np.where((llist > wmin-wdiff) & (llist < wmax+wdiff))[0]
-    wavidx = test_arcy.brute_force_solve(yval, ll[wll], coeff, npix, lim)
+    wavidx, offsets = test_arcy.brute_force_solve(yval, ll[wll], coeff, npix, lim)
     end = time.time()
     print("Execution time:", end-start)
     #print wavidx
 
     wavids = llist[wll[wavidx]]
+    if debug:
+        debugger.set_trace()
+        debugger.xhist(np.log10(offsets))
+
+    # Restrict
+    gdid = np.where(offsets < 1e-4)[0]
 
     # Fit the best solution
     xmod = np.arange(npix)
-    coeff = arutils.func_fit(tcent, wavids, "polynomial", 3)
-    coeffb = arutils.func_fit(wavids, tcent, "polynomial", 3)
+    #coeff = arutils.func_fit(tcent[gdid], wavids[gdid], "polynomial", 3)
+    #coeffb = arutils.func_fit(wavids[gdid], tcent[gdid], "polynomial", 3)
+    msk, coeff = arutils.robust_polyfit(tcent[gdid], wavids[gdid], 3, function="polynomial")
+    mskb, coeffb = arutils.robust_polyfit(wavids[gdid], tcent[gdid], 3, function="polynomial")
+    msgs.info("Masked {:d} IDs".format(np.sum(msk)))
     ymod = arutils.func_val(coeff, xmod, "polynomial")
     pmod = arutils.func_val(coeff, tcent, "polynomial")
     wmod = arutils.func_val(coeffb, wavids, "polynomial")
     #
-    print("Coefficients:", coeff)
-    print(wavids)
-    resid = np.std(tcent-wmod)
-    print("Pixel residual: {:g}".format(resid))
+    #print("Coefficients:", coeff)
+    #print(wavids)
+    finalid = gdid[mskb==0]
+    resid = np.std(tcent[finalid]-wmod[finalid])
+    if verbose:
+        print("Pixel residual: {:g}".format(resid))
     #debugger.set_trace()
     return coeff, resid, wavids
