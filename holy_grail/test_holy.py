@@ -15,6 +15,7 @@ import matplotlib.gridspec as gridspec
 this_file = os.path.realpath(__file__)
 this_path = this_file[:this_file.rfind('/')]
 sys.path.append(os.path.abspath(this_path+'/../src'))
+sys.path.append(os.path.abspath(this_path+'/brute_force/'))
 import armsgs as msgs
 
 import ardebug
@@ -26,69 +27,15 @@ msgs = msgs.get_logger((None, debug, last_updated, version, verbose))
 
 import ararc
 import ararclines
-import arcyarc
 import arutils
 import arholy
-import arwave
+import test_arcy
+import brute_force
 
 try:
     from xastropy.xutils import xdebug as debugger
 except:
     import pdb as debugger
-
-
-
-
-def test_lrisr_600_7500(debug=True):
-    """ Tests on the IDL save file for LRISr
-    Returns
-    -------
-
-    """
-    id_wave = [6506.528 ,  6678.2766,  6717.043 ,  6929.4672,  6965.431]
-    llist = ararclines.load_arcline_list(None,None,
-                                         ['ArI','NeI','HgI','KrI','XeI'],None)
-
-    # IDL save file
-    sav_file = os.getenv('LONGSLIT_DIR')+'calib/linelists/lris_red_600_7500.sav'
-    s = readsav(sav_file)
-
-    idx = 0
-    spec = s['archive_arc'][idx]
-    npix = len(spec)
-
-    # Find peaks
-    tampl, tcent, twid, w, yprep = find_peaks(spec)
-    pixpk = tcent[w]
-    pixampl = tampl[w]
-    # Saturation here
-    if False:
-        plt.clf()
-        ax = plt.gca()
-        ax.plot(np.arange(npix), yprep, 'k', drawstyle='mid-steps')
-        ax.scatter(pixpk, pixampl, marker='o')
-        plt.show()
-        debugger.set_trace()
-
-    # Evaluate fit at peaks
-    pixwave = cheby_val(s['calib'][idx]['ffit'], pixpk,
-                        s['calib'][idx]['nrm'],s['calib'][idx]['nord'])
-    # Setup IDlines
-    id_pix = []
-    for idw in id_wave:
-        diff = np.abs(idw-pixwave)
-        imin = np.argmin(diff)
-        if diff[imin] < 2.:
-            id_pix.append(pixpk[imin])
-        else:
-            raise ValueError("No match to {:g}!".format(idw))
-    idlines = ararc.IDLines(np.array(id_pix), np.array(id_wave))
-
-    # Holy Grail
-    ararc.searching_for_the_grail(pixpk=pixpk,idlines=idlines, npix=npix, llist=llist,
-                                  extrap_off=750.)
-    # PDF
-    debugger.set_trace()
 
 
 def init_holy2_test(infil, lamps=None):
@@ -210,13 +157,15 @@ def evalaute_ids(tids, tmsk, twv):
 
 def test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json', verbose=False,
                outfil=None, ngrid=250, p23_frac = 0.25, lamps=None,
-               nlines=(3,4,5)):
+               nlines=(3,4,5), brute=False):
     """ Test number and location of Holy 1 lines
 
     Parameters
     ----------
     infil : str, optional
       JSON file containing the good fit
+    brute : bool, optional
+      Use brute_force for Holy2?
 
     Returns
     -------
@@ -240,8 +189,11 @@ def test_holy1(infil='/holy_grail/lrisr_600_7500_holy.json', verbose=False,
             if extend:
                 idpix,idwave = arholy.extend_fit(tcent, idpix, idwave, llist, match_toler=0.3, extrap=1)
             # Holy2
-            tids = arholy.run_holy2(tcent, idpix, idwave, npix, llist,
-                             p23_frac=p23_frac, ngrid=ngrid, verbose=verbose)
+            if brute:
+                pass
+            else:
+                tids = arholy.run_holy2(tcent, idpix, idwave, npix, llist,
+                                 p23_frac=p23_frac, ngrid=ngrid, verbose=verbose)
             # Evaluate
             ID, gdID, badID = evalaute_ids(tids, tmsk, twv)
             # Fill
@@ -420,7 +372,7 @@ def main(flg_test):
     else:
         flg_test = int(flg_test)
 
-    # Fiducial
+    # Fiducial -- no longer runs
     if (flg_test % 2**1) >= 2**0:
         test_lrisr_600_7500()
 
@@ -432,10 +384,10 @@ def main(flg_test):
         plot_ngoodbad('test_holy1_lrisr600_500.json', ['nlines', 'pixcen'],
                       'Testing Holy1 Input (LRISr 600)', 'test_holy1_lrisr600.pdf')
         #
-        test_holy1(infil='/holy_grail/lrisb_600_4000_holy.json',
-                   lamps=['ZnI', 'CdI', 'HgI'], p23_frac=0.4,
-                   ngrid=500, outfil='test_holy1_lrisb600.json')
-        #test_holy1(infil='lrisb_600_4000_holy.json',
+        #test_holy1(infil='/holy_grail/lrisb_600_4000_holy.json',
+        #           lamps=['ZnI', 'CdI', 'HgI'], p23_frac=0.4,
+        #           ngrid=500, outfil='test_holy1_lrisb600.json')
+        ##test_holy1(infil='lrisb_600_4000_holy.json',
         #           lamps=['ZnI', 'CdI', 'HgI'], nlines=[4,5],
         #           ngrid=250, outfil='test_holy1_lrisb600_500.json')
 

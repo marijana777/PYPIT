@@ -30,7 +30,7 @@ def parse_nist(slf,ion, use_vac=True):
         root = slf._argflag['run']['pypitdir'] 
     # Find file
     if use_vac:
-        srch_file = root + '/data/arc_lines/NIST/Stash/'+ion+'_vacuum.ascii'
+        srch_file = root + '/data/arc_lines/NIST/'+ion+'_vacuum.ascii'
     else:
         srch_file = root + '/data/arc_lines/NIST/'+ion+'.ascii'
     nist_file = glob.glob(srch_file)
