@@ -1413,6 +1413,7 @@ def identify(np.ndarray[DTYPE_t, ndim=1] linelist not None,
     sz_l = linelist.shape[0]
 
     cdef np.ndarray[DTYPE_t, ndim=1] idlist = np.zeros(sz_w, dtype=DTYPE)
+    cdef np.ndarray[ITYPE_t, ndim=1] ididxs = np.zeros(sz_w, dtype=ITYPE)
 
     for ww in range(sz_w):
         bst = wavguess[ww]-linelist[0]
@@ -1430,6 +1431,7 @@ def identify(np.ndarray[DTYPE_t, ndim=1] linelist not None,
                 # Since linelist is sorted, we can break as soon as a bad solution is found
                 break
         idlist[ww] = linelist[idx]
+        ididxs[ww] = idx
     return idlist
 
 
