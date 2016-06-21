@@ -46,104 +46,104 @@ cdef extern from "gsl/gsl_multifit.h":
 
 @cython.boundscheck(False)
 def brute_force_solve(np.ndarray[DTYPE_t, ndim=1] pix not None,
-						np.ndarray[DTYPE_t, ndim=1] linelist not None,
-						np.ndarray[DTYPE_t, ndim=1] coeff not None,
-						double npix, double lim):
+                        np.ndarray[DTYPE_t, ndim=1] linelist not None,
+                        np.ndarray[DTYPE_t, ndim=1] coeff not None,
+                        double npix, double lim):
 
-	# Note that lim = 1.0 would be very conservative, and would encompass
-	# all possible values.
+    # Note that lim = 1.0 would be very conservative, and would encompass
+    # all possible values.
 
-	cdef int ii, jj, pp, npx, qq, nl
-	cdef int bii, bjj, bidx
-	cdef double bval, tval, bscr, tscr
+    cdef int ii, jj, pp, npx, qq, nl
+    cdef int bii, bjj, bidx
+    cdef double bval, tval, bscr, tscr
 
-	npx = pix.shape[0]
-	nl = linelist.shape[0]
+    npx = pix.shape[0]
+    nl = linelist.shape[0]
 
-	# Define the range of coefficients available
-	cdef int nsz = <int>(lim*npix)
-	cdef np.ndarray[DTYPE_t, ndim=1] cval = np.linspace(-lim, lim, nsz)
-	cdef np.ndarray[DTYPE_t, ndim=1] llp = np.zeros((nl), dtype=DTYPE)
-	cdef np.ndarray[DTYPE_t, ndim=1] ll = np.zeros((nl), dtype=DTYPE)
-	cdef np.ndarray[DTYPE_t, ndim=1] lll = np.zeros((nl), dtype=DTYPE)
-	for qq in range(nl):
-		ll[qq] = linelist[qq]*linelist[qq]
-		lll[qq] = linelist[qq]*linelist[qq]*linelist[qq]
+    # Define the range of coefficients available
+    cdef int nsz = <int>(lim*npix)
+    cdef np.ndarray[DTYPE_t, ndim=1] cval = np.linspace(-lim, lim, nsz)
+    cdef np.ndarray[DTYPE_t, ndim=1] llp = np.zeros((nl), dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t, ndim=1] ll = np.zeros((nl), dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t, ndim=1] lll = np.zeros((nl), dtype=DTYPE)
+    for qq in range(nl):
+        ll[qq] = linelist[qq]*linelist[qq]
+        lll[qq] = linelist[qq]*linelist[qq]*linelist[qq]
 
-	# Create a list of the IDs
-	#cdef np.ndarray[DTYPE_t, ndim=1] diffids = np.zeros((npx), dtype=DTYPE)
-	cdef np.ndarray[ITYPE_t, ndim=1] ids = np.zeros((npx), dtype=ITYPE)
+    # Create a list of the IDs
+    #cdef np.ndarray[DTYPE_t, ndim=1] diffids = np.zeros((npx), dtype=DTYPE)
+    cdef np.ndarray[ITYPE_t, ndim=1] ids = np.zeros((npx), dtype=ITYPE)
 
-	# Iterate through the brute force calculation
-	for ii in range(nsz):
-		for jj in range(nsz):
-			# Convert the linelist into pixels
-			for qq in range(nl):
-				llp[qq] = coeff[0] + linelist[qq]*coeff[1] + ll[qq]*cval[ii] + lll[qq]*cval[jj]
-			# For each pixel, find the closest ID in the linelist
+    # Iterate through the brute force calculation
+    for ii in range(nsz):
+        for jj in range(nsz):
+            # Convert the linelist into pixels
+            for qq in range(nl):
+                llp[qq] = coeff[0] + linelist[qq]*coeff[1] + ll[qq]*cval[ii] + lll[qq]*cval[jj]
+            # For each pixel, find the closest ID in the linelist
 #			for pp in range(npx):
 #				bval = pix[pp]-llp[0]
 #				if bval < 0.0: bval *= -1.0
 #				bidx = 0
-			bidx = 0
-			tscr = 0.0
-			for pp in range(npx):
-				bval = pix[pp]-llp[bidx]
-				if bval < 0.0:
-					bval *= -1.0
-				if bidx+1 >= nl:
-					break
-				for qq in range(bidx+1, nl):
-					tval = pix[pp]-llp[qq]
-					if tval < 0.0:
-						tval *= -1.0
-					if tval < bval:
-						bval = tval
-						bidx = qq
-					else:
-						# Because ll is sorted, we can break the loop
-						# here if a worse value is found
-						break
-				# Store the best residual of this pixel
-				tscr += bval
-			# Calculate the score of this solution and test
-			# if it's better than the rest
-			#tscr = np.median(diffids)
-			if (ii==0 and jj==0) or (tscr < bscr):
-				bscr = tscr
-				bii = ii
-				bjj = jj
-	#print cval[bii], cval[bjj]
-	# Once the best solution is found, ID the lines
-	# Convert the linelist into pixels
-	for qq in range(nl):
-		llp[qq] = coeff[0] + linelist[qq]*coeff[1] + ll[qq]*cval[bii] + lll[qq]*cval[bjj]
-	# For each pixel, find the closest ID in the linelist
-	for pp in range(npx):
-		bval = pix[pp]-llp[0]
-		if bval < 0.0:
-			bval *= -1.0
-		bidx = 0
-		for qq in range(1,nl):
-			tval = pix[pp]-llp[qq]
-			if tval < 0.0:
-				tval *= -1.0
-			if tval < bval:
-				bval = tval
-				bidx = qq
-			else:
-				# Because ll is sorted, we can break the loop
-				# here if a better value isn't found
-				break
-		# Assign the best ID to this pixel
-		if bval < 0.5:
-		    # ID is within one pixel
-    		ids[pp] = bidx
-    	else:
-    	    # Could not identify the correct wavelength for this pixel
-    	    ids[pp] = -1
-	# Return the best indices
-	return ids
+            bidx = 0
+            tscr = 0.0
+            for pp in range(npx):
+                bval = pix[pp]-llp[bidx]
+                if bval < 0.0:
+                    bval *= -1.0
+                if bidx+1 >= nl:
+                    break
+                for qq in range(bidx+1, nl):
+                    tval = pix[pp]-llp[qq]
+                    if tval < 0.0:
+                        tval *= -1.0
+                    if tval < bval:
+                        bval = tval
+                        bidx = qq
+                    else:
+                        # Because ll is sorted, we can break the loop
+                        # here if a worse value is found
+                        break
+                # Store the best residual of this pixel
+                tscr += bval
+            # Calculate the score of this solution and test
+            # if it's better than the rest
+            #tscr = np.median(diffids)
+            if (ii==0 and jj==0) or (tscr < bscr):
+                bscr = tscr
+                bii = ii
+                bjj = jj
+    #print cval[bii], cval[bjj]
+    # Once the best solution is found, ID the lines
+    # Convert the linelist into pixels
+    for qq in range(nl):
+        llp[qq] = coeff[0] + linelist[qq]*coeff[1] + ll[qq]*cval[bii] + lll[qq]*cval[bjj]
+    # For each pixel, find the closest ID in the linelist
+    for pp in range(npx):
+        bval = pix[pp]-llp[0]
+        if bval < 0.0:
+            bval *= -1.0
+        bidx = 0
+        for qq in range(1,nl):
+            tval = pix[pp]-llp[qq]
+            if tval < 0.0:
+                tval *= -1.0
+            if tval < bval:
+                bval = tval
+                bidx = qq
+            else:
+                # Because ll is sorted, we can break the loop
+                # here if a better value isn't found
+                break
+        # Assign the best ID to this pixel
+        if bval < 0.5:
+            # ID is within one pixel
+            ids[pp] = bidx
+        else:
+            # Could not identify the correct wavelength for this pixel
+            ids[pp] = -1
+    # Return the best indices
+    return ids
 
 #######
 #  C  #
@@ -647,50 +647,50 @@ def find_closest(np.ndarray[DTYPE_t, ndim=1] arclist not None,
 
 
 def find_linear(np.ndarray[DTYPE_t, ndim=2] detid not None,
-				np.ndarray[DTYPE_t, ndim=2] wavid not None,
-				double tolerance):
-	"""
-	Mask lines that deviate by at least 1 pixel from the best linear solution for each pattern
-	tolerance = the allowed tolerance in units of pixels
-	"""
-	cdef int numsol, numidx
-	cdef int s, i, j, k
-	cdef double grad, intc
-	cdef int bsti, bstj, num
-	cdef double bval, diff
+                np.ndarray[DTYPE_t, ndim=2] wavid not None,
+                double tolerance):
+    """
+    Mask lines that deviate by at least 1 pixel from the best linear solution for each pattern
+    tolerance = the allowed tolerance in units of pixels
+    """
+    cdef int numsol, numidx
+    cdef int s, i, j, k
+    cdef double grad, intc
+    cdef int bsti, bstj, num
+    cdef double bval, diff
 
-	numsol = detid.shape[0]
-	numidx = detid.shape[1]
+    numsol = detid.shape[0]
+    numidx = detid.shape[1]
 
-	cdef np.ndarray[ITYPE_t, ndim=2] mskid = np.ones((numsol,numidx), dtype=ITYPE)
+    cdef np.ndarray[ITYPE_t, ndim=2] mskid = np.ones((numsol,numidx), dtype=ITYPE)
 
-	for s in range(numsol):
-		bsti = -1
-		bstj = -1
-		bval = 0
-		for i in range(0, numidx-1):
-			for j in range(i+1, numidx):
-				grad = (wavid[s,i]-wavid[s,j])/(detid[s,i]-detid[s,j])
-				intc = wavid[s,i] - grad*detid[s,i]
-				# Check which pixels are within the tolerance
-				num = 0
-				for k in range(numidx):
-					diff = detid[s,k] - ((wavid[s,k]-intc)/grad)
-					if diff < 0.0: diff *= -1.0
-					if diff < tolerance:
-						num += 1
-				if bsti == -1 or num > bval:
-					bval = num
-					bsti = i
-					bstj = j
-		grad = (wavid[s,bsti]-wavid[s,bstj])/(detid[s,bsti]-detid[s,bstj])
-		intc = wavid[s,bsti] - grad*detid[s,bsti]
-		for k in range(numidx):
-			diff = detid[s,k] - ((wavid[s,k]-intc)/grad)
-			if diff < 0.0: diff *= -1.0
-			if diff < tolerance:
-				mskid[s,k] = 0
-	return mskid
+    for s in range(numsol):
+        bsti = -1
+        bstj = -1
+        bval = 0
+        for i in range(0, numidx-1):
+            for j in range(i+1, numidx):
+                grad = (wavid[s,i]-wavid[s,j])/(detid[s,i]-detid[s,j])
+                intc = wavid[s,i] - grad*detid[s,i]
+                # Check which pixels are within the tolerance
+                num = 0
+                for k in range(numidx):
+                    diff = detid[s,k] - ((wavid[s,k]-intc)/grad)
+                    if diff < 0.0: diff *= -1.0
+                    if diff < tolerance:
+                        num += 1
+                if bsti == -1 or num > bval:
+                    bval = num
+                    bsti = i
+                    bstj = j
+        grad = (wavid[s,bsti]-wavid[s,bstj])/(detid[s,bsti]-detid[s,bstj])
+        intc = wavid[s,bsti] - grad*detid[s,bsti]
+        for k in range(numidx):
+            diff = detid[s,k] - ((wavid[s,k]-intc)/grad)
+            if diff < 0.0: diff *= -1.0
+            if diff < tolerance:
+                mskid[s,k] = 0
+    return mskid
 
 
 #@cython.boundscheck(False)
@@ -1432,7 +1432,7 @@ def identify(np.ndarray[DTYPE_t, ndim=1] linelist not None,
                 break
         idlist[ww] = linelist[idx]
         ididxs[ww] = idx
-    return idlist
+    return idlist, ididxs
 
 
 @cython.boundscheck(False)
@@ -2093,150 +2093,150 @@ def order_saturation(np.ndarray[ITYPE_t, ndim=2] satmask not None,
 #######
 
 def patterns_quad(np.ndarray[DTYPE_t, ndim=1] linelist not None,
-		int numsrch, double maxlin):
-	"""
-	linelist : list of wavelength calibration lines (must be sorted by ascending wavelength)
-	"""
-	cdef int nptn = 4  # Number of lines used to create a pattern
-	cdef int l, ll, sz_l, x, xx
-	cdef int cnt, nup
+        int numsrch, double maxlin):
+    """
+    linelist : list of wavelength calibration lines (must be sorted by ascending wavelength)
+    """
+    cdef int nptn = 4  # Number of lines used to create a pattern
+    cdef int l, ll, sz_l, x, xx
+    cdef int cnt, nup
 
-	sz_l = linelist.shape[0]
+    sz_l = linelist.shape[0]
 
-	# Count the number of patterns that will be created
-	cnt=0
-	for l in range(0, sz_l-nptn+1):
-		nup = (l+nptn-1) + numsrch
-		if nup > sz_l: nup = sz_l
-		for ll in range(l+nptn-1, nup):
-			if (linelist[ll]-linelist[l]) > maxlin: continue
-			for x in range(l+1,ll-2):
-				for xx in range(x+1,ll-1):
-					cnt += 1
+    # Count the number of patterns that will be created
+    cnt=0
+    for l in range(0, sz_l-nptn+1):
+        nup = (l+nptn-1) + numsrch
+        if nup > sz_l: nup = sz_l
+        for ll in range(l+nptn-1, nup):
+            if (linelist[ll]-linelist[l]) > maxlin: continue
+            for x in range(l+1,ll-2):
+                for xx in range(x+1,ll-1):
+                    cnt += 1
 
-	cdef np.ndarray[ITYPE_t, ndim=2] index = np.zeros((cnt,nptn), dtype=ITYPE)
-	cdef np.ndarray[DTYPE_t, ndim=2] pattern = np.zeros((cnt,nptn-2), dtype=DTYPE)
+    cdef np.ndarray[ITYPE_t, ndim=2] index = np.zeros((cnt,nptn), dtype=ITYPE)
+    cdef np.ndarray[DTYPE_t, ndim=2] pattern = np.zeros((cnt,nptn-2), dtype=DTYPE)
 
-	# Generate the patterns
-	cnt=0
-	for l in range(0, sz_l-nptn+1):
-		nup = (l+nptn-1) + numsrch
-		if nup > sz_l: nup = sz_l
-		for ll in range(l+nptn-1, nup):
-			if (linelist[ll]-linelist[l]) > maxlin: continue
-			# Create a pattern with these two endpoints
-			for x in range(l+1,ll-2):
-				for xx in range(x+1,ll-1):
-					index[cnt,0] = l
-					index[cnt,1] = x
-					index[cnt,2] = xx
-					index[cnt,3] = ll
-					pattern[cnt,0] = (linelist[x] -linelist[l])/(linelist[ll]-linelist[l])
-					pattern[cnt,1] = (linelist[xx]-linelist[l])/(linelist[ll]-linelist[l])
-					cnt += 1
-	return pattern, index
+    # Generate the patterns
+    cnt=0
+    for l in range(0, sz_l-nptn+1):
+        nup = (l+nptn-1) + numsrch
+        if nup > sz_l: nup = sz_l
+        for ll in range(l+nptn-1, nup):
+            if (linelist[ll]-linelist[l]) > maxlin: continue
+            # Create a pattern with these two endpoints
+            for x in range(l+1,ll-2):
+                for xx in range(x+1,ll-1):
+                    index[cnt,0] = l
+                    index[cnt,1] = x
+                    index[cnt,2] = xx
+                    index[cnt,3] = ll
+                    pattern[cnt,0] = (linelist[x] -linelist[l])/(linelist[ll]-linelist[l])
+                    pattern[cnt,1] = (linelist[xx]-linelist[l])/(linelist[ll]-linelist[l])
+                    cnt += 1
+    return pattern, index
 
 
 def patterns_quint(np.ndarray[DTYPE_t, ndim=1] linelist not None,
-		int numsrch, double maxlin):
-	"""
-	linelist : list of wavelength calibration lines (must be sorted by ascending wavelength)
-	"""
-	cdef int nptn = 5  # Number of lines used to create a pattern
-	cdef int l, ll, sz_l, x, xx, xxx
-	cdef int cnt, nup
+        int numsrch, double maxlin):
+    """
+    linelist : list of wavelength calibration lines (must be sorted by ascending wavelength)
+    """
+    cdef int nptn = 5  # Number of lines used to create a pattern
+    cdef int l, ll, sz_l, x, xx, xxx
+    cdef int cnt, nup
 
-	sz_l = linelist.shape[0]
+    sz_l = linelist.shape[0]
 
-	# Count the number of patterns that will be created
-	cnt=0
-	for l in range(0, sz_l-nptn+1):
-		nup = (l+nptn-1) + numsrch
-		if nup > sz_l: nup = sz_l
-		for ll in range(l+nptn-1, nup):
-			if (linelist[ll]-linelist[l]) > maxlin: continue
-			for x in range(l+1,ll-3):
-				for xx in range(x+1,ll-2):
-					for xxx in range(xx+1,ll-1):
-						cnt += 1
+    # Count the number of patterns that will be created
+    cnt=0
+    for l in range(0, sz_l-nptn+1):
+        nup = (l+nptn-1) + numsrch
+        if nup > sz_l: nup = sz_l
+        for ll in range(l+nptn-1, nup):
+            if (linelist[ll]-linelist[l]) > maxlin: continue
+            for x in range(l+1,ll-3):
+                for xx in range(x+1,ll-2):
+                    for xxx in range(xx+1,ll-1):
+                        cnt += 1
 
-	cdef np.ndarray[ITYPE_t, ndim=2] index = np.zeros((cnt,nptn), dtype=ITYPE)
-	cdef np.ndarray[DTYPE_t, ndim=2] pattern = np.zeros((cnt,nptn-2), dtype=DTYPE)
+    cdef np.ndarray[ITYPE_t, ndim=2] index = np.zeros((cnt,nptn), dtype=ITYPE)
+    cdef np.ndarray[DTYPE_t, ndim=2] pattern = np.zeros((cnt,nptn-2), dtype=DTYPE)
 
-	# Generate the patterns
-	cnt=0
-	for l in range(0, sz_l-nptn+1):
-		nup = (l+nptn-1) + numsrch
-		if nup > sz_l: nup = sz_l
-		for ll in range(l+nptn-1, nup):
-			if (linelist[ll]-linelist[l]) > maxlin: continue
-			# Create a pattern with these two endpoints
-			for x in range(l+1,ll-3):
-				for xx in range(x+1,ll-2):
-					for xxx in range(xx+1,ll-1):
-						index[cnt,0] = l
-						index[cnt,1] = x
-						index[cnt,2] = xx
-						index[cnt,3] = xxx
-						index[cnt,4] = ll
-						pattern[cnt,0] = (linelist[x]  -linelist[l])/(linelist[ll]-linelist[l])
-						pattern[cnt,1] = (linelist[xx] -linelist[l])/(linelist[ll]-linelist[l])
-						pattern[cnt,2] = (linelist[xxx]-linelist[l])/(linelist[ll]-linelist[l])
-						cnt += 1
-	return pattern, index
+    # Generate the patterns
+    cnt=0
+    for l in range(0, sz_l-nptn+1):
+        nup = (l+nptn-1) + numsrch
+        if nup > sz_l: nup = sz_l
+        for ll in range(l+nptn-1, nup):
+            if (linelist[ll]-linelist[l]) > maxlin: continue
+            # Create a pattern with these two endpoints
+            for x in range(l+1,ll-3):
+                for xx in range(x+1,ll-2):
+                    for xxx in range(xx+1,ll-1):
+                        index[cnt,0] = l
+                        index[cnt,1] = x
+                        index[cnt,2] = xx
+                        index[cnt,3] = xxx
+                        index[cnt,4] = ll
+                        pattern[cnt,0] = (linelist[x]  -linelist[l])/(linelist[ll]-linelist[l])
+                        pattern[cnt,1] = (linelist[xx] -linelist[l])/(linelist[ll]-linelist[l])
+                        pattern[cnt,2] = (linelist[xxx]-linelist[l])/(linelist[ll]-linelist[l])
+                        cnt += 1
+    return pattern, index
 
 
 def patterns_sext(np.ndarray[DTYPE_t, ndim=1] linelist not None,
-		int numsrch, double maxlin):
-	"""
-	linelist : list of wavelength calibration lines (must be sorted by ascending wavelength)
-	"""
-	cdef int nptn = 6  # Number of lines used to create a pattern
-	cdef int l, ll, sz_l, x, xx, xxx, xxxx
-	cdef int cnt, nup
+        int numsrch, double maxlin):
+    """
+    linelist : list of wavelength calibration lines (must be sorted by ascending wavelength)
+    """
+    cdef int nptn = 6  # Number of lines used to create a pattern
+    cdef int l, ll, sz_l, x, xx, xxx, xxxx
+    cdef int cnt, nup
 
-	sz_l = linelist.shape[0]
+    sz_l = linelist.shape[0]
 
-	# Count the number of patterns that will be created
-	cnt=0
-	for l in range(0, sz_l-nptn+1):
-		nup = (l+nptn-1) + numsrch
-		if nup > sz_l: nup = sz_l
-		for ll in range(l+nptn-1, nup):
-			if (linelist[ll]-linelist[l]) > maxlin: continue
-			for x in range(l+1,ll-4):
-				for xx in range(x+1,ll-3):
-					for xxx in range(xx+1,ll-2):
-						for xxxx in range(xxx+1,ll-1):
-							cnt += 1
+    # Count the number of patterns that will be created
+    cnt=0
+    for l in range(0, sz_l-nptn+1):
+        nup = (l+nptn-1) + numsrch
+        if nup > sz_l: nup = sz_l
+        for ll in range(l+nptn-1, nup):
+            if (linelist[ll]-linelist[l]) > maxlin: continue
+            for x in range(l+1,ll-4):
+                for xx in range(x+1,ll-3):
+                    for xxx in range(xx+1,ll-2):
+                        for xxxx in range(xxx+1,ll-1):
+                            cnt += 1
 
-	cdef np.ndarray[ITYPE_t, ndim=2] index = np.zeros((cnt,nptn), dtype=ITYPE)
-	cdef np.ndarray[DTYPE_t, ndim=2] pattern = np.zeros((cnt,nptn-2), dtype=DTYPE)
+    cdef np.ndarray[ITYPE_t, ndim=2] index = np.zeros((cnt,nptn), dtype=ITYPE)
+    cdef np.ndarray[DTYPE_t, ndim=2] pattern = np.zeros((cnt,nptn-2), dtype=DTYPE)
 
-	# Generate the patterns
-	cnt=0
-	for l in range(0, sz_l-nptn+1):
-		nup = (l+nptn-1) + numsrch
-		if nup > sz_l: nup = sz_l
-		for ll in range(l+nptn-1, nup):
-			if (linelist[ll]-linelist[l]) > maxlin: continue
-			# Create a pattern with these two endpoints
-			for x in range(l+1,ll-4):
-				for xx in range(x+1,ll-3):
-					for xxx in range(xx+1,ll-2):
-						for xxxx in range(xxx+1,ll-1):
-							index[cnt,0] = l
-							index[cnt,1] = x
-							index[cnt,2] = xx
-							index[cnt,3] = xxx
-							index[cnt,4] = xxxx
-							index[cnt,5] = ll
-							pattern[cnt,0] = (linelist[x]   -linelist[l])/(linelist[ll]-linelist[l])
-							pattern[cnt,1] = (linelist[xx]  -linelist[l])/(linelist[ll]-linelist[l])
-							pattern[cnt,2] = (linelist[xxx] -linelist[l])/(linelist[ll]-linelist[l])
-							pattern[cnt,3] = (linelist[xxxx]-linelist[l])/(linelist[ll]-linelist[l])
-							cnt += 1
-	return pattern, index
+    # Generate the patterns
+    cnt=0
+    for l in range(0, sz_l-nptn+1):
+        nup = (l+nptn-1) + numsrch
+        if nup > sz_l: nup = sz_l
+        for ll in range(l+nptn-1, nup):
+            if (linelist[ll]-linelist[l]) > maxlin: continue
+            # Create a pattern with these two endpoints
+            for x in range(l+1,ll-4):
+                for xx in range(x+1,ll-3):
+                    for xxx in range(xx+1,ll-2):
+                        for xxxx in range(xxx+1,ll-1):
+                            index[cnt,0] = l
+                            index[cnt,1] = x
+                            index[cnt,2] = xx
+                            index[cnt,3] = xxx
+                            index[cnt,4] = xxxx
+                            index[cnt,5] = ll
+                            pattern[cnt,0] = (linelist[x]   -linelist[l])/(linelist[ll]-linelist[l])
+                            pattern[cnt,1] = (linelist[xx]  -linelist[l])/(linelist[ll]-linelist[l])
+                            pattern[cnt,2] = (linelist[xxx] -linelist[l])/(linelist[ll]-linelist[l])
+                            pattern[cnt,3] = (linelist[xxxx]-linelist[l])/(linelist[ll]-linelist[l])
+                            cnt += 1
+    return pattern, index
 
 
 @cython.boundscheck(False)

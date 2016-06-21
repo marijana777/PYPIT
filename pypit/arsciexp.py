@@ -701,11 +701,16 @@ class ScienceExposure:
                     self._argflag['masters']['loaded'].append('wave_calib'+self._argflag['masters']['setup'])
             if 'wave_calib'+self._argflag['masters']['setup'] not in self._argflag['masters']['loaded']:
                 # Setup arc parameters (e.g. linelist)
-                arcparam = ararc.setup_param(self, sc, det, fitsdict)
-                self.SetFrame(self._arcparam, arcparam, det)
-                ###############
-                # Extract arc and identify lines
-                wv_calib = ararc.simple_calib(self, det)
+                if True:
+                    wv_calib = ararc.auto_calib(self, sc, det, fitsdict)
+                    import pdb
+                    pdb.set_trace()
+                else:
+                    arcparam = ararc.setup_param(self, sc, det, fitsdict)
+                    self.SetFrame(self._arcparam, arcparam, det)
+                    ###############
+                    # Extract arc and identify lines
+                    wv_calib = ararc.simple_calib(self, det)
                 #
         else: # It must be the name of a file the user wishes to load
             msgs.error("Not prepared to read a user-specified wave file")

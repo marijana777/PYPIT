@@ -54,7 +54,7 @@ arc calibrate numsearch 20           # Number of brightest arc lines to search f
 #arc calibrate sigmacut 2.0          # Significance level
 arc calibrate cwpolyorder 2          # Polynomial order to fit central wavelength solution
 arc calibrate threshold 3.0          # Rejection threshold (in pixels) for the wavelength solution. If an identified pixel is greater than this significance away from the expected location, it will be rejected.
-arc calibrate polyorderpri 4         # Polynomial order to be used when fitting primary arc solution (note: order 4 corresponds to 5 free parameters)
+arc calibrate polyorder 4         # Polynomial order to be used when fitting primary arc solution (note: order 4 corresponds to 5 free parameters)
 arc calibrate polyordersec 9         # Polynomial order to be used when fitting secondary arc solution (note: order 8 corresponds to 9 free parameters)
 arc calibrate pcapri [6,3,3,1,1]     # What order polynomials should be used to fit the principle components for the primary arc solution
 arc calibrate pcasec [2,2,1,1,2,1,0,0] # What order polynomials should be used to fit the principle components for the secondary arc solution

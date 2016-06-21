@@ -255,7 +255,7 @@ def setup_param(slf, sc, det, fitsdict):
     return arcparam
 
 
-def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npixcen=0.005):
+def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npixcen=0.005, sig_rej=2.0):
     """ Automatically identify arc lines
 
     Parameters
@@ -270,6 +270,8 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
       The fraction of the detector that is considered linear
     npixcen : float
       The fraction of the detector that the central wavelength can be determined.
+    sig_rej : float
+      Rejection threshold (in units of 1 sigma) for the final fit
 
     """
     # Set the tolerance for acceptable identifications (in pixels)
@@ -298,7 +300,11 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
     lamps = slf._argflag['arc']['calibrate']['lamps']
     linelist = ararclines.load_arcline_list(slf, idx, lamps, disperser, wvmnx=None)
     ll = linelist['wave'].data
-    linelist = np.array(ll[np.where(~ll.mask)])
+    whll = np.where(~ll.mask)
+    ions = linelist['Ion'].data
+    idsion = np.array(['     ']*whll[0].size)
+    linelist = np.array(ll[whll])
+    idsion[:] = np.array(ions[whll])
     # Sort the linelist
     linelist.sort()
 
@@ -317,6 +323,7 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
     solscore = np.array([])
     solcorel = np.array([])
     solwaves = []
+    solwvidx = []
     solwmask = []
     for tt in range(2):
         if tt == 0:
@@ -356,7 +363,7 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
         wvindx = -1*np.ones((ncols*nindx, 3))
         cnt = 0
         for x in range(nrows):
-            if x+1%100 == 0: print x+1, "/", nrows
+            if x+1 % 100 == 0: print x+1, "/", nrows
             for y in range(len(res[x])):
                 dx = detlines[detidx[x, -1]] - detlines[detidx[x, 0]]
                 dp = linelist[lstidx[res[x][y], -1]] - linelist[lstidx[res[x][y], 0]]
@@ -463,27 +470,75 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
             wavids = linelist[wll[wavidx]]
             mskids = np.zeros_like(wavids)
             mskids[np.where(wavidx == -1)] = 1
-            # Fit the solution with a polynomial
-            order = slf._argflag[]
-            coeff = arutils.func_fit(detlines, wavids, "legendre", order, minv=0.0, maxv=npixels-1.0, w=1.0-mskids)
-            model = arutils.func_val(coeff, detlines, "legendre", minv=0.0, maxv=npixels-1.0)
-            # Re-identify the lines based on this fit and then refit
-            wavids = arcyarc.identify(linelist, model)
-            coeff = arutils.func_fit(detlines, wavids, "legendre", order, minv=0.0, maxv=npixels-1.0, w=1.0-mskids)
-            model = arutils.func_val(coeff, detlines, "legendre", minv=0.0, maxv=npixels-1.0)
+            # Fit the solution with a polynomial and repeat
+            order = slf._argflag['arc']['calibrate']['polyorder']
+            for rr in range(2):
+                mskids, coeff = arutils.robust_polyfit(detlines, wavids, order, function="legendre",
+                                                     initialmask=mskids, forceimask=True,
+                                                     sigma=sig_rej, minv=0.0, maxv=npixels-1.0)
+                model = arutils.func_val(coeff, detlines, "legendre", minv=0.0, maxv=npixels-1.0)
+                # Calculate Angstroms per pixel at the location of each detection
+                dcoeff = arutils.func_deriv(coeff, "legendre", 1)
+                dmodel = arutils.func_val(dcoeff, detlines, "legendre", minv=0.0, maxv=npixels-1.0)
+                wavids, wavidx = arcyarc.identify(linelist, model)
+                mskids = np.zeros_like(wavids)
+                mskids[np.where(np.abs((wavids-model)/dmodel) > tolerance)] = 1
             # Calculate the score for this solution
-            score = 1.0/np.std(wavdone[wgd]-ymodel[wgd])
+            wgd = np.where(mskids == 0)
+            score = 1.0/np.std(wavids[wgd]-model[wgd])
             solscore[i] = score
 
             # Store this solution for later comparison
-            solwaves.append(wavdone.copy())
-            solwmask.append(mskdone.copy())
+            solwaves.append(wavids.copy())
+            solwvidx.append(wavidx.copy())
+            solwmask.append(mskids.copy())
 
         # Append the solution
         solscore = np.append(solscore, tsolscore)
         solcorel = np.append(solcorel, tt*np.ones_like(tsolscore))
 
-    return ids
+    # Identify the best solution
+    scrbst = np.argmax(solscore)
+    fmin, fmax = 0.0, 1.0
+    ifit = solwmask[scrbst]
+    xfit, yfit = detlines[ifit]/(npixels-1.0), solwaves[scrbst][ifit]
+    mask, fit = arutils.robust_polyfit(xfit, yfit, slf._argflag['arc']['calibrate']['polyorder'],
+                                       function="legendre", sigma=sig_rej, minv=fmin, maxv=fmax)
+    irej = np.where(mask == 1)[0]
+    if irej.size > 0:
+        xrej = xfit[irej]
+        yrej = yfit[irej]
+        for imask in irej:
+            msgs.info('Rejecting arc line {:g}'.format(yfit[imask]))
+    else:
+        xrej = []
+        yrej = []
+    xfit = xfit[mask == 0]
+    yfit = yfit[mask == 0]
+    # Get the name of the ions
+    all_idsion = np.array(['12345']*len(tcent))
+    all_idsion[ifit] = idsion[solwvidx[scrbst]]
+    ions = all_idsion[ifit][mask == 0]
+
+    dfit = arutils.func_deriv(fit, "legendre", 1)
+    cen_wave = arutils.func_val(fit, np.array([0.5]), "legendre", minv=fmin, maxv=fmax)[0]
+    cen_disp = arutils.func_val(dfit, np.array([0.5]), "legendre", minv=fmin, maxv=fmax)[0]
+    msgs.info("Best wavlength solution is index {0:d} with estimated values:".format(scrbst) + msgs.newline() +
+              "  Central wavelength: {0:.4f} Angstroms".format(cen_wave) + msgs.newline() +
+              "  Central dispersion: {0:.4f} Ansgtroms/pixel".format(cen_disp))
+    if solcorel[scrbst] == 0:
+        msgs.info("Wavelength increases with increasing pixels")
+    else:
+        msgs.info("Wavelength decreases with increasing pixels")
+    # Pack up fit
+    final_fit = dict(fitc=fit, function="legendre", xfit=xfit, yfit=yfit,
+                     ions=ions, fmin=fmin, fmax=fmax, xnorm=float(npixels),
+                     xrej=xrej, yrej=yrej, mask=mask, spec=yprep, nrej=sig_rej,
+                     shift=0.)
+    # QA
+    arqa.arc_fit_qa(slf, final_fit)
+    # Return
+    return final_fit
 
 
 def simple_calib(slf, det, get_poly=False):
