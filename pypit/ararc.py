@@ -486,7 +486,7 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
             # Calculate the score for this solution
             wgd = np.where(mskids == 0)
             score = 1.0/np.std(wavids[wgd]-model[wgd])
-            solscore[i] = score
+            tsolscore[i] = score
 
             # Store this solution for later comparison
             solwaves.append(wavids.copy())
