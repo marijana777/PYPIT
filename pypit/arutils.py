@@ -191,6 +191,34 @@ def func_der(coeffs, func, nderive=1):
                    "Please choose from 'polynomial', 'legendre', 'chebyshev'")
 
 
+def func_deriv(coeff, func, m):
+    """ Calculate the coefficients of a differentiated polynomial function
+
+    Parameters
+    ----------
+    coeff : array
+      coefficients of the function
+    func : str
+      polynomial, legendre, chebyshev
+    m : int
+      number of differentiations to perform
+
+    Returns
+    -------
+    dcoeff : array
+      derivative coefficients
+    """
+    if func == "polynomial":
+        return np.polynomial.polynomial.polyder(coeff, m)
+    elif func == "legendre":
+        return np.polynomial.legendre.legder(coeff, m)
+    elif func == "chebyshev":
+        return np.polynomial.chebyshev.chebder(coeff, m)
+    else:
+        msgs.error("Differentiating function '{0:s}' is not implemented yet" + msgs.newline() +
+                   "Please choose from 'polynomial', 'legendre', 'chebyshev'")
+
+
 def func_fit(x, y, func, deg, minv=None, maxv=None, w=None, guesses=None,
              **kwargs):
     """ General routine to fit a function to a given set of x,y points
@@ -281,7 +309,7 @@ def func_fit(x, y, func, deg, minv=None, maxv=None, w=None, guesses=None,
         return popt
     else:
         msgs.error("Fitting function '{0:s}' is not implemented yet" + msgs.newline() +
-                   "Please choose from 'polynomial', 'legendre', 'chebyshev','bspline'")
+                   "Please choose from 'polynomial', 'legendre', 'chebyshev', 'bspline', 'gaussian', 'moffat'")
 
 
 def func_val(c, x, func, minv=None, maxv=None):
@@ -339,7 +367,7 @@ def func_val(c, x, func, minv=None, maxv=None):
             msgs.error("Not ready for this type of Moffat")
     else:
         msgs.error("Fitting function '{0:s}' is not implemented yet" + msgs.newline() +
-                   "Please choose from 'polynomial', 'legendre', 'chebyshev', 'bspline'")
+                   "Please choose from 'polynomial', 'legendre', 'chebyshev', 'bspline', 'gaussian', 'moffat'")
 
 
 def func_vander(x, func, deg, minv=None, maxv=None):
