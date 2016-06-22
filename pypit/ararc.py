@@ -335,6 +335,7 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
             # Reverse the order of the pixels
             detlines = detlines[::-1]
             detampls = detampls[::-1]
+            detlines = npixels - detlines
         # Generate the patterns and store indices
         detpatt, detidx = arcyarc.patterns_sext(detlines, numsearch, maxlin*npixels)
         msgs.info("Number of pixel patterns: {0:d}".format(detidx.shape[0]))
@@ -363,7 +364,6 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
         wvindx = -1*np.ones((ncols*nindx, 3))
         cnt = 0
         for x in range(nrows):
-            if x+1 % 100 == 0: print x+1, "/", nrows
             for y in range(len(res[x])):
                 dx = detlines[detidx[x, -1]] - detlines[detidx[x, 0]]
                 dp = linelist[lstidx[res[x][y], -1]] - linelist[lstidx[res[x][y], 0]]
@@ -382,6 +382,7 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
 
         wvs = wvcent[np.where(wvcent != 0.0)]
         wvd = wvdisp[np.where(wvdisp != 0.0)]
+        #pdb.set_trace()
         allwave = np.linspace(wvs.min(), wvs.max(), (np.max(linelist)-np.min(linelist))/wvd.min())
         bwest = npixcen*np.median(wvd)  # Assume the central wavelength can be determined within npixcen
         msgs.info("Constructing KDE with bandwidth {0:f}".format(bwest))
@@ -399,6 +400,17 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
         mxsrt = np.argsort(tpdf[wmx+1])[-nsolsrch:]
         # Estimate of the central wavelengths
         cwest = allwave[wmx+1][mxsrt][::-1]
+
+        cwv = np.linspace(0.0, 1.0, wvs.size)
+        plt.subplot(211)
+        plt.plot(wvs,cwv,'b-')
+        for i in range(cwest.size):
+            plt.plot([cwest[i], cwest[i]], [0.0, 1.0], 'r-')
+        plt.subplot(212)
+        plt.hist(wvs, bins=np.linspace(wvs.min(),wvs.max(),1500), normed=1)
+        plt.plot(allwave,wvpdf,'r-')
+        plt.show()
+        plt.clf()
 
         tsolscore = np.ones(cwest.size)
         for i in range(cwest.size):
@@ -440,7 +452,7 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
                     mskdone[j] = 1
             # Now perform a brute force identification on the detlines and the linelist
             # Fit the known pixels with a cubic polynomial
-            yval = detlines/npixels
+            yval = detlines/(npixels-1.0)
             wmsk = np.where(mskdone == 1)
 
             # Determine (roughly) the minimum and maximum wavelengths
@@ -484,23 +496,34 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
                 mskids = np.zeros_like(wavids)
                 mskids[np.where(np.abs((wavids-model)/dmodel) > tolerance)] = 1
             # Calculate the score for this solution
-            wgd = np.where(mskids == 0)
-            score = 1.0/np.std(wavids[wgd]-model[wgd])
+            #wgd = np.where(mskids == 0)
+            #coeff = arutils.func_fit(detlines, wavids, "legendre", order, w=1-mskids, minv=0.0, maxv=npixels-1.0)
+            #model = arutils.func_val(coeff, detlines, "legendre", minv=0.0, maxv=npixels-1.0)
+            score = 1.0/np.std(wavids-model)
             tsolscore[i] = score
 
             # Store this solution for later comparison
-            solwaves.append(wavids.copy())
-            solwvidx.append(wavidx.copy())
-            solwmask.append(mskids.copy())
+            if tt == 0:
+                solwaves.append(wavids.copy())
+                solwvidx.append(wavidx.copy())
+                solwmask.append(mskids.copy())
+            else:
+                solwaves.append(wavids.copy()[::-1])
+                solwvidx.append(wavidx.copy()[::-1])
+                solwmask.append(mskids.copy()[::-1])
 
         # Append the solution
         solscore = np.append(solscore, tsolscore)
         solcorel = np.append(solcorel, tt*np.ones_like(tsolscore))
 
+    # Return detlines to its original order
+    detlines = npixels - detlines
+    detlines = detlines[::-1]
+
     # Identify the best solution
     scrbst = np.argmax(solscore)
     fmin, fmax = 0.0, 1.0
-    ifit = solwmask[scrbst]
+    ifit = np.where(solwmask[scrbst] == 0)
     xfit, yfit = detlines[ifit]/(npixels-1.0), solwaves[scrbst][ifit]
     mask, fit = arutils.robust_polyfit(xfit, yfit, slf._argflag['arc']['calibrate']['polyorder'],
                                        function="legendre", sigma=sig_rej, minv=fmin, maxv=fmax)
@@ -525,7 +548,7 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
     cen_disp = arutils.func_val(dfit, np.array([0.5]), "legendre", minv=fmin, maxv=fmax)[0]
     msgs.info("Best wavlength solution is index {0:d} with estimated values:".format(scrbst) + msgs.newline() +
               "  Central wavelength: {0:.4f} Angstroms".format(cen_wave) + msgs.newline() +
-              "  Central dispersion: {0:.4f} Ansgtroms/pixel".format(cen_disp))
+              "  Central dispersion: {0:.4f} Angstroms/pixel".format(cen_disp/(npixels-1.0)))
     if solcorel[scrbst] == 0:
         msgs.info("Wavelength increases with increasing pixels")
     else:

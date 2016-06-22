@@ -703,8 +703,7 @@ class ScienceExposure:
                 # Setup arc parameters (e.g. linelist)
                 if True:
                     wv_calib = ararc.auto_calib(self, sc, det, fitsdict)
-                    import pdb
-                    pdb.set_trace()
+                    msgs.error("Not really an error -- just here to check plots")
                 else:
                     arcparam = ararc.setup_param(self, sc, det, fitsdict)
                     self.SetFrame(self._arcparam, arcparam, det)
