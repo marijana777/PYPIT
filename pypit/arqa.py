@@ -24,6 +24,7 @@ try:
 except:
     import pdb as debugger
 
+
 def arc_fit_qa(slf, fit, outfil=None, ids_only=False, title=None):
     """
     QA for Arc spectrum

@@ -179,18 +179,6 @@ def erf_func(x):
     return sign*y
 
 
-def func_der(coeffs, func, nderive=1):
-    if func == "polynomial":
-        return np.polynomial.polynomial.polyder(coeffs, m=nderive)
-    elif func == "legendre":
-        return np.polynomial.legendre.legder(coeffs, m=nderive)
-    elif func == "chebyshev":
-        return np.polynomial.chebyshev.chebder(coeffs, m=nderive)
-    else:
-        msgs.error("Functional derivative '{0:s}' is not implemented yet"+msgs.newline() +
-                   "Please choose from 'polynomial', 'legendre', 'chebyshev'")
-
-
 def func_deriv(coeff, func, m):
     """ Calculate the coefficients of a differentiated polynomial function
 

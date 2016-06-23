@@ -273,7 +273,19 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
     sig_rej : float
       Rejection threshold (in units of 1 sigma) for the final fit
 
+    Returns
+    -------
+    final_fit : dict
+      Dictionary containing all relevant wavelength calibration information
+    status : int
+      The status of the fit
+        0 = acceptable solution
+        1 = marginally acceptable solution (0.1 < pixel RMS < 0.2)
+        2 = unacceptable solution (pixel RMS > 0.2)
     """
+    # Set the default status
+    status = 0
+
     # Set the tolerance for acceptable identifications (in pixels)
     tolerance = 0.7
 
@@ -368,7 +380,8 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
                 dx = detlines[detidx[x, -1]] - detlines[detidx[x, 0]]
                 dp = linelist[lstidx[res[x][y], -1]] - linelist[lstidx[res[x][y], 0]]
                 try:
-                    null, cgrad = arutils.robust_polyfit(detlines[detidx[x,:]], linelist[lstidx[res[x][y],:]], 1, sigma=2.0)
+                    null, cgrad = arutils.robust_polyfit(detlines[detidx[x, :]], linelist[lstidx[res[x][y], :]], 1,
+                                                         sigma=2.0)
                     wvdisp[cnt] = cgrad[1]
                 except:
                     wvdisp[cnt] = (dp/dx)
@@ -382,7 +395,6 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
 
         wvs = wvcent[np.where(wvcent != 0.0)]
         wvd = wvdisp[np.where(wvdisp != 0.0)]
-        #pdb.set_trace()
         allwave = np.linspace(wvs.min(), wvs.max(), (np.max(linelist)-np.min(linelist))/wvd.min())
         bwest = npixcen*np.median(wvd)  # Assume the central wavelength can be determined within npixcen
         msgs.info("Constructing KDE with bandwidth {0:f}".format(bwest))
@@ -401,16 +413,17 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
         # Estimate of the central wavelengths
         cwest = allwave[wmx+1][mxsrt][::-1]
 
-        cwv = np.linspace(0.0, 1.0, wvs.size)
-        plt.subplot(211)
-        plt.plot(wvs,cwv,'b-')
-        for i in range(cwest.size):
-            plt.plot([cwest[i], cwest[i]], [0.0, 1.0], 'r-')
-        plt.subplot(212)
-        plt.hist(wvs, bins=np.linspace(wvs.min(),wvs.max(),1500), normed=1)
-        plt.plot(allwave,wvpdf,'r-')
-        plt.show()
-        plt.clf()
+        if False:
+            cwv = np.linspace(0.0, 1.0, wvs.size)
+            plt.subplot(211)
+            plt.plot(wvs, cwv, 'b-')
+            for i in range(cwest.size):
+                plt.plot([cwest[i], cwest[i]], [0.0, 1.0], 'r-')
+            plt.subplot(212)
+            plt.hist(wvs, bins=np.linspace(wvs.min(), wvs.max(), 1500), normed=1)
+            plt.plot(allwave, wvpdf, 'r-')
+            plt.show()
+            plt.clf()
 
         tsolscore = np.ones(cwest.size)
         for i in range(cwest.size):
@@ -496,9 +509,9 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
                 mskids = np.zeros_like(wavids)
                 mskids[np.where(np.abs((wavids-model)/dmodel) > tolerance)] = 1
             # Calculate the score for this solution
-            #wgd = np.where(mskids == 0)
-            #coeff = arutils.func_fit(detlines, wavids, "legendre", order, w=1-mskids, minv=0.0, maxv=npixels-1.0)
-            #model = arutils.func_val(coeff, detlines, "legendre", minv=0.0, maxv=npixels-1.0)
+            # wgd = np.where(mskids == 0)
+            # coeff = arutils.func_fit(detlines, wavids, "legendre", order, w=1-mskids, minv=0.0, maxv=npixels-1.0)
+            # model = arutils.func_val(coeff, detlines, "legendre", minv=0.0, maxv=npixels-1.0)
             score = 1.0/np.std(wavids-model)
             tsolscore[i] = score
 
@@ -543,12 +556,25 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
     all_idsion[ifit] = idsion[solwvidx[scrbst]]
     ions = all_idsion[ifit][mask == 0]
 
-    dfit = arutils.func_deriv(fit, "legendre", 1)
-    cen_wave = arutils.func_val(fit, np.array([0.5]), "legendre", minv=fmin, maxv=fmax)[0]
-    cen_disp = arutils.func_val(dfit, np.array([0.5]), "legendre", minv=fmin, maxv=fmax)[0]
+    dx = (1.0/npixels)**2
+    cen_wd = arutils.func_val(fit, np.array([0.5, 0.5+dx]), "legendre", minv=fmin, maxv=fmax)
+    cen_wave = cen_wd[0]
+    cen_disp = (cen_wd[1]-cen_wd[0])/dx
+    cen_disp /= (npixels-1.0)
+    # Calculate the RMS
+    model = arutils.func_val(fit, xfit, "legendre", minv=fmin, maxv=fmax)
+    dmodel = np.abs(arutils.func_val(fit, xfit+dx, "legendre", minv=fmin, maxv=fmax))
+    dmodel = (dmodel-model)/dx
+    dmodel /= (npixels-1.0)
+    pixrms = np.sqrt(np.sum(((yfit-model)/dmodel)**2)/xfit.size)
+    tstc = arutils.func_fit(xfit, yfit, "polynomial", 4)
+    tstp = arutils.func_val(tstc, xfit, "polynomial")
+    np.std(tstp - xfit*(npixels-1.0))
+    # Print the resulting properties of the best model
     msgs.info("Best wavlength solution is index {0:d} with estimated values:".format(scrbst) + msgs.newline() +
               "  Central wavelength: {0:.4f} Angstroms".format(cen_wave) + msgs.newline() +
-              "  Central dispersion: {0:.4f} Angstroms/pixel".format(cen_disp/(npixels-1.0)))
+              "  Central dispersion: {0:.4f} Angstroms/pixel".format(cen_disp) + msgs.newline() +
+              "  RMS residuals: {0:.4f} pixels".format(pixrms))
     if solcorel[scrbst] == 0:
         msgs.info("Wavelength increases with increasing pixels")
     else:
@@ -557,11 +583,21 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
     final_fit = dict(fitc=fit, function="legendre", xfit=xfit, yfit=yfit,
                      ions=ions, fmin=fmin, fmax=fmax, xnorm=float(npixels),
                      xrej=xrej, yrej=yrej, mask=mask, spec=yprep, nrej=sig_rej,
-                     shift=0.)
+                     shift=0.0)
     # QA
     arqa.arc_fit_qa(slf, final_fit)
     # Return
-    return final_fit
+    if pixrms > 0.3:
+        msgs.warn("Pixel RMS from autoid exceeded an acceptable value of 0.3")
+        msgs.warn("Wavelength solution is probably unreliable")
+        status = 2
+    elif pixrms > 0.15:
+        msgs.warn("Pixel RMS is larger than ideal")
+        msgs.info("Check the wavelength solution")
+        status = 1
+    else:
+        msgs.info("Pixels residuals are acceptable")
+    return final_fit, status
 
 
 def simple_calib(slf, det, get_poly=False):
