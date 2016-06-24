@@ -352,6 +352,11 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
         detpatt, detidx = arcyarc.patterns_sext(detlines, numsearch, maxlin*npixels)
         msgs.info("Number of pixel patterns: {0:d}".format(detidx.shape[0]))
 
+        if detidx.shape[0] == 0:
+            status = 4
+            msgs.info("Pixel patterns could not be generated")
+            return None, status
+
         # Find the difference between the end point "reference" pixels
         ddiff = detlines[detidx[:, -1]] - detlines[detidx[:, 0]]
 
@@ -370,6 +375,10 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
         msgs.info("Identifying candidate wavelengths")
         nrows = len(res)
         ncols = sum(map(len, res))
+        if ncols == 0:
+            status = 5
+            msgs.info("Could not identify any matching patterns")
+            return None, status
         nindx = detidx.shape[1]
         wvdisp = np.zeros(ncols)
         wvcent = np.zeros(ncols)
@@ -385,8 +394,8 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
                     wvdisp[cnt] = cgrad[1]
                 except:
                     wvdisp[cnt] = (dp/dx)
-                coeff = np.polyfit(detlines[detidx[x, :]], linelist[lstidx[res[x][y]]], 2)
-                wvcent[cnt] = np.polyval(coeff, npixels/2.0)
+                coeff = arutils.func_fit(detlines[detidx[x, :]], linelist[lstidx[res[x][y]]], "polynomial", 2)
+                wvcent[cnt] = arutils.func_val(coeff, npixels/2.0, "polynomial")
                 for i in range(nindx):
                     wvindx[cnt*nindx+i, 0] = cnt
                     wvindx[cnt*nindx+i, 1] = detidx[x, i]
@@ -559,7 +568,7 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
     dx = (1.0/npixels)**2
     cen_wd = arutils.func_val(fit, np.array([0.5, 0.5+dx]), "legendre", minv=fmin, maxv=fmax)
     cen_wave = cen_wd[0]
-    cen_disp = (cen_wd[1]-cen_wd[0])/dx
+    cen_disp = np.abs(cen_wd[1]-cen_wd[0])/dx
     cen_disp /= (npixels-1.0)
     # Calculate the RMS
     model = arutils.func_val(fit, xfit, "legendre", minv=fmin, maxv=fmax)
