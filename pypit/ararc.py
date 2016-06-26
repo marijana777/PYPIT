@@ -299,6 +299,8 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
         1 = marginally acceptable solution (0.1 < pixel RMS < 0.2)
         2 = unacceptable solution (pixel RMS > 0.2)
     """
+    from pypit import arcyarc
+
     # Set the default status
     status = 0
 

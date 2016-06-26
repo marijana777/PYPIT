@@ -707,18 +707,19 @@ class ScienceExposure:
                 else:
                     self._argflag['masters']['loaded'].append('wave_calib'+self._argflag['masters']['setup'])
             if 'wave_calib'+self._argflag['masters']['setup'] not in self._argflag['masters']['loaded']:
-                # Setup arc parameters (e.g. linelist)
-                if True:
+                # Wavelength calibration
+                if False:
+                    # Attempt an automatic wavelength calibration
                     wv_calib, status = ararc.auto_calib(self, sc, det, fitsdict)
-                    msgs.error("Not really an error -- just here to check plots")
-                    if status == 2:
-                        msgs.info("Attempting the simple wavelength calibration algorithm")
+                    if status >= 2:
+                        msgs.info("Attempting an alternative wavelength calibration algorithm")
                         arcparam = ararc.setup_param(self, sc, det, fitsdict)
                         self.SetFrame(self._arcparam, arcparam, det)
                         ###############
                         # Extract arc and identify lines
                         wv_calib = ararc.simple_calib(self, det)
                 else:
+                    # Setup arc parameters (e.g. linelist)
                     arcparam = ararc.setup_param(self, sc, det, fitsdict)
                     self.SetFrame(self._arcparam, arcparam, det)
                     ###############
