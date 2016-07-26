@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 from signal import SIGINT, signal as sigsignal
 from warnings import resetwarnings, simplefilter
 from time import time
+from multiprocessing import cpu_count
 from pypit import armsgs
 
 # Import PYPIT routines
@@ -79,6 +80,8 @@ def PYPIT(redname, debug=None, progname=__file__, quick=False, ncpus=1, verbose=
 
     # Initialize the arguments and flags
     argflag = arload.argflag_init()
+    if ncpus > cpu_count():
+        msg.error('There are {:d} cpu\'s requested but only {:d} cpu\'s available!'.format(ncpus, cpu_count()))
     argflag['run']['ncpus'] = ncpus
     argflag['out']['verbose'] = verbose
 
@@ -146,6 +149,10 @@ def PYPIT(redname, debug=None, progname=__file__, quick=False, ncpus=1, verbose=
         msgs.info("Data reduction will be performed using PYPIT-ARMED")
         from pypit import armed
         status = armed.ARMED(argflag, spect, fitsdict)
+    elif spect['mosaic']['reduction'] == 'ARMMLD':
+        msgs.info("Data reduction will be performed using PYPIT-ARMMLD")
+        from pypit import armmld
+        status = armed.ARMMLD(argflag, spect, fitsdict)
     # Check for successful reduction
     if status == 0:
         msgs.info("Data reduction complete")
