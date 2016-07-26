@@ -27,4 +27,42 @@ class Slit(object):
     def __repr__(self):
         return '<' + type(self).__name__ + ': ' + self.name + '>'
 
+    def read_data(self, argflag, spect, fitsdict):
+        '''
+        Loads up data to be used in the reduction.
+
+        Parameters
+        ----------
+        argflag : dict
+          Arguments and flags used for reduction
+        spect : dict
+          Properties of the spectrograph.
+        fitsdict : dict
+          Contains relevant information from fits header files
+        '''
+        # slice data and hold it
+        pass
+        
+def make_slits(self, slitmask, left_traces, right_traces):
+    '''
+    Constructs slit objects with the measured edge traces.
+
+    Parameters
+    ----------
+    slitmask : arslitmask.Slitmask instance
+    left_traces : float array of left (lower) edge in pixel values
+    right_traces : float array of right (upper) edge in pixel values
+
+    Returns
+    -------
+    slits : a list of Slit instances
+    '''
+    trace_idx, slit_idx = slitmask.match_traces(left_traces, right_traces)
+    # reject alignment boxes at some point
+    isalign = slitmask.slits[slit_idx].isalign
+    names = slitmask.slits[slit_idx].name
+    lefts = left_edges[trace_idx]
+    rights = right_edges[trace_idx]
+    return [Slit(lefts[i], right[i], name[i]) for i in range(len(trace_idx))]
+
     

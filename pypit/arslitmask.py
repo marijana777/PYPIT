@@ -11,6 +11,7 @@ from scipy import signal
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from pypit import armsgs
+from pypit import arslit
 
 try:
     from xastropy.xutils import xdebug as debugger
@@ -19,32 +20,6 @@ except:
 
 # Logging
 msgs = armsgs.get_logger()
-
-# class Slit(object):
-#     '''
-#     Slit with mask coordinates
-#     '''
-#
-#     def __init__(self, name, left_edge, right_edge, pa, width, isalign=False):
-#         '''
-#         Parameters
-#         ----------
-#         name : str, name of slit
-#         left_edge : float, left edge of slit in mask coordinates
-#         right_edge : float, right edge of slit in mask coordinates
-#         pa : float, position angle of slit in degrees ccw from y-axis, mask coordinates
-#         width : float, slit width in arcsec
-#         isalign : bool, true if slit is an alignment box
-#         '''
-#         self.name = name
-#         self.left_edge = left_edge
-#         self.right_edge = right_edge
-#         self.pa = pa
-#         self.width = width
-#         self.isalign = isalign
-
-#     def __repr__(self):
-#         return '<' + type(self).__name__ + ': ' + self.name + '>'
 
 def offset(measured_edges, predicted_edges):
     '''
@@ -141,6 +116,22 @@ class Slitmask(object):
     def slit_lengths(self, idx=slice(None)):
         return np.abs(self.slits[idx].left_edge - self.slits[idx].right_edge)
 
+    def match_traces(self, left_traces, right_traces):
+        '''
+        Takes measured slit edges and matches them to the registered slit.
+        
+        Parameters
+        ----------
+        left_traces : float array of left (lower) edge in pixel values
+        right_traces : float array of right (upper) edge in pixel values
+
+        Returns
+        -------
+        trace_idx : int array of indices of left_traces and right_traces
+        slit_idx : int array of indices of self.slits, same size as trace_idx
+        '''
+        pass        
+        
     
 class DEIMOS_slitmask(Slitmask):
     '''

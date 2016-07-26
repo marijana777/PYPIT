@@ -3,6 +3,8 @@
 from __future__ import (print_function, absolute_import, division, unicode_literals)
 
 import numpy as np
+from astropy.io import fits
+
 from pypit import arflux
 from pypit import arload
 from pypit import armasters
@@ -13,6 +15,9 @@ from pypit import arsave
 from pypit import arsort
 from pypit import artrace
 from pypit import arqa
+from pypit import arslitmask
+from pypit import arslit
+from pypit import arpool
 
 from linetools import utils as ltu
 
@@ -26,9 +31,16 @@ msgs = armsgs.get_logger()
 
 def reduce_slit(slit):
     '''
+    Parameters
+    ----------
+    slit : arslit.Slit object, has everything necessary to produce a reduced spectrum.
 
+    Returns
+    -------
+    TBD
     '''
-    
+    pass
+
 def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
     """
     Automatic Reduction and Modeling of Multi-slit Data
@@ -79,6 +91,20 @@ def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
         slf = sciexp[sc]
         scidx = slf._idx_sci[0]
         msgs.info("Reducing file {0:s}, target {1:s}".format(fitsdict['filename'][scidx], slf._target_name))
+        
+        # create Slitmask for reference with data
+        instrument = argflag['run']['spectrograph']
+        hdulist = fits.open(fitsdict['filename'][scidx])
+        if instrument == 'deimos':
+            slitmask = arslitmask.DEIMOS_slitmask(hdulist)
+        elif instrument == 'lris_red':
+            raise NotImplementedError
+        elif instrument == 'lris_blue':
+            raise NotImplementedError
+        else:
+            msg.error('Not prepared to reduce ' + instrument + ' MOS data!')
+        hdulist.close()
+        
         msgs.sciexp = slf  # For QA writing on exit, if nothing else.  Could write Masters too
         if reloadMaster and (sc > 0):
             slf._argflag['masters']['use'] = True
@@ -151,7 +177,20 @@ def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
                 #
                 armbase.UpdateMasters(sciexp, sc, det, ftype="flat", chktype="trace")
 
-            # Need to build up Slit objects at this point for passing to pool.
+            # Need to build up Slit objects at this point for passing to Pool.
+            slits = arslit.make_slits(slitmask, lordpix, rordpix)
+            # Put whatever data we need into each slit
+            for slit in slits:
+                slit.read_data(slf._argflag, slf._spect, slf._fitsdict)
+            # Make a Pool
+            ncpus = argflag['run']['ncpus']
+            if ncpus > 1:
+                pool = arpool.InterruptablePool(ncpus)
+                results = pool.map(reduce_slit, slits)
+            else:
+                results = map(reduce_slit, slits)
+
+            # Much will change!
                 
             ###############
             # Prepare the pixel flat field frame
