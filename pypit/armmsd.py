@@ -102,7 +102,7 @@ def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
         elif instrument == 'lris_blue':
             raise NotImplementedError
         else:
-            msg.error('Not prepared to reduce ' + instrument + ' MOS data!')
+            msg.error('Not prepared to reduce ' + instrument + ' multi-slit data!')
         hdulist.close()
         
         msgs.sciexp = slf  # For QA writing on exit, if nothing else.  Could write Masters too

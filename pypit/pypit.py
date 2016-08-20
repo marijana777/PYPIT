@@ -156,10 +156,10 @@ def PYPIT(redname, debug=None, progname=__file__, quick=False, ncpus=1, verbose=
         msgs.info("Data reduction will be performed using PYPIT-ARMED")
         from pypit import armed
         status = armed.ARMED(argflag, spect, fitsdict)
-    elif spect['mosaic']['reduction'] == 'ARMMLD':
-        msgs.info("Data reduction will be performed using PYPIT-ARMMLD")
-        from pypit import armmld
-        status = armed.ARMMLD(argflag, spect, fitsdict)
+    elif spect['mosaic']['reduction'] == 'ARMMSD':
+        msgs.info("Data reduction will be performed using PYPIT-ARMMSD")
+        from pypit import armmsd
+        status = armmsd.ARMMSD(argflag, spect, fitsdict)
     # Check for successful reduction
     if status == 0:
         msgs.info("Data reduction complete")
