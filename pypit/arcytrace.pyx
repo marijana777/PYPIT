@@ -72,7 +72,6 @@ def assign_orders(np.ndarray[ITYPE_t, ndim=2] edgdet not None,
             cntr = rarr[x]
             comr = x
 
-    print "-->", coml, comr
     # Obtain the (x,y) values for the most common slit edge id
     cdef np.ndarray[ITYPE_t, ndim=2] lcarr = np.zeros((cntl,2), dtype=ITYPE)
     cdef np.ndarray[ITYPE_t, ndim=2] rcarr = np.zeros((cntr,2), dtype=ITYPE)
@@ -406,6 +405,164 @@ def clean_pix(np.ndarray[DTYPE_t, ndim=2] array not None,
     return array
 
 
+@cython.boundscheck(False)
+def close_edges(np.ndarray[ITYPE_t, ndim=2] edgdet not None,
+                np.ndarray[ITYPE_t, ndim=1] dets not None,
+                int npix):
+
+    cdef int sz_x, sz_y, sz_d
+    cdef int x, y, d, s, mgap
+    cdef int tmp, tix
+
+    sz_x = edgdet.shape[0]
+    sz_y = edgdet.shape[1]
+    sz_d = dets.shape[0]
+
+    cdef np.ndarray[ITYPE_t, ndim=1] hasedge = np.zeros(sz_d, dtype=ITYPE)
+
+    for d in range(0, sz_d):
+        tmp = sz_y
+        for x in range(0, sz_x):
+            for y in range(0, sz_y):
+                if edgdet[x, y] != dets[d]:
+                    continue
+                else:
+                    # Check if there's an edge nearby
+                    mgap = y+npix+1
+                    # Check limits
+                    if mgap > sz_y:
+                        mgap = sz_y
+                    for s in range(y+1, mgap):
+                        if edgdet[x, s] == dets[d]:
+                            hasedge[d] = 1
+                            break
+                if hasedge[d] != 0:
+                    break
+            if hasedge[d] != 0:
+                break
+        if tmp != sz_y:
+            hasedge[d] = tix
+    return hasedge
+
+
+@cython.boundscheck(False)
+def close_slits(np.ndarray[DTYPE_t, ndim=2] trframe not None,
+                np.ndarray[ITYPE_t, ndim=2] edgdet not None,
+                np.ndarray[ITYPE_t, ndim=1] dets not None,
+                int npix):
+
+    cdef int sz_x, sz_y, sz_d
+    cdef int x, y, d, s, mgap, lgap, rgap, enum
+    cdef double lminv, lmaxv, rminv, rmaxv
+    cdef int tmp, tix, flg, diff
+
+    sz_x = edgdet.shape[0]
+    sz_y = edgdet.shape[1]
+    sz_d = dets.shape[0]
+
+    cdef np.ndarray[ITYPE_t, ndim=2] edgearr = np.zeros((sz_x, sz_y), dtype=ITYPE)
+    cdef np.ndarray[ITYPE_t, ndim=1] hasedge = np.zeros(sz_d, dtype=ITYPE)
+
+    for d in range(0, sz_d):
+        tmp = sz_y
+        for x in range(0, sz_x):
+            for y in range(0, sz_y):
+                if edgdet[x, y] != dets[d]:
+                    continue
+                else:
+                    # Check if there's an edge nearby
+                    mgap = y+npix+1
+                    # Check limits
+                    if mgap > sz_y:
+                        mgap = sz_y
+                    for s in range(y+1, mgap):
+                        if edgdet[x, s] != 0:
+                            if s-y < tmp:
+                                tmp = s-y
+                                tix = edgdet[x, s]
+                            hasedge[d] = edgdet[x, s]
+                            break
+#                if hasedge[d] != 0:
+#                    break
+#            if hasedge[d] != 0:
+#                break
+        if tmp != sz_y:
+            hasedge[d] = tix
+
+    # Now, if there's an edge in hasedge, mark the corresponding index in hasedge with -1
+    for d in range(0, sz_d):
+        if hasedge[d] == dets[d]:
+            # Close slits have caused a left/right edge to be labelled as one edge
+            # Find only instances where there is a left and right edge detection
+            # Then, take their average and set hadedge to be zero
+            tmp = 0
+            diff = 0
+            for x in range(0, sz_x):
+                for y in range(0, sz_y):
+                    if edgdet[x, y] != dets[d]:
+                        continue
+                    else:
+                        # Check if there's an edge nearby
+                        mgap = y+npix+1
+                        # Check limits
+                        if mgap > sz_y:
+                            mgap = sz_y
+                        flg = 0
+                        for s in range(y+1, mgap):
+                            if edgdet[x, s] == edgdet[x, y]:
+                                edgdet[x, s] = 0
+                                edgdet[x, y] = 0
+                                tix = y + <int>(0.5*<double>(s-y) + 0.5)  # +0.5 for rounding
+                                edgdet[x, tix] = dets[d]
+                                flg = 1
+                                tmp += 1
+                                diff += (s-y)
+                                break
+                        if flg == 0:
+                            # If there isn't a common left/right edge for this pixel, ignore this single edge detection
+                            edgdet[x, y] = 0
+            hasedge[d] = diff/tmp
+            continue
+        if hasedge[d] > 0:
+            for s in range(0, sz_d):
+                if hasedge[d] == dets[s]:
+                    hasedge[s] = -1
+                    break
+
+    # Introduce an edge in cases where no edge exists,
+    # and redefine an edge where one does exist.
+    enum = 500
+    for d in range(0, sz_d):
+        tmp = 0
+        for x in range(0, sz_x):
+            for y in range(0, sz_y):
+                if edgdet[x, y] != dets[d]:
+                    continue
+                if hasedge[d] >= 500:
+                    edgearr[x, y] = enum
+                    # Relabel the appropriate hasedge
+                    if tmp == 0:
+                        for s in range(0, sz_d):
+                            if hasedge[d] == dets[s]:
+                                # Label hasedge as negative, to avoid confusion
+                                # with the positive hasedge numbers
+                                hasedge[s] = -enum
+                                tmp = 1
+                                break
+                elif hasedge[d] < -1:
+                    edgearr[x, y] = hasedge[d]
+                elif hasedge[d] >= 0:
+                    # Create a new edge
+                    edgearr[x, y-(1+hasedge[d])] = enum
+                    edgearr[x, y+(1+hasedge[d])] = -enum
+                else:
+                    print "      --->> BUG in arcytrace.close_edges(), check slit traces!!"
+        if hasedge[d] >= 0:
+            enum += 1
+    # Finally return the new slit edges array
+    return edgearr
+
+
 #######
 #  D  #
 #######
@@ -485,6 +642,60 @@ def detect_edges(np.ndarray[DTYPE_t, ndim=2] array not None,
                 dr = 0
     return edgdet
 
+
+@cython.boundscheck(False)
+def dual_edge(np.ndarray[ITYPE_t, ndim=2] edgearr not None,
+              np.ndarray[ITYPE_t, ndim=2] edgearrcp not None,
+              np.ndarray[ITYPE_t, ndim=1] wx not None,
+              np.ndarray[ITYPE_t, ndim=1] wy not None,
+              np.ndarray[ITYPE_t, ndim=1] wl not None,
+              np.ndarray[ITYPE_t, ndim=1] wr not None,
+              int shft, int npix, int newval):
+
+    cdef int x, y, ee
+    cdef int sz_x, sz_y, sz_a, sz_b, sz_e
+    cdef int maxy, flg
+    sz_x = edgearr.shape[0]
+    sz_y = edgearr.shape[1]
+    sz_a = wl.shape[0]
+    sz_b = wr.shape[0]
+    sz_e = wx.shape[0]
+
+    # First go through the leftmost edge (suffix a)
+    for x in range(sz_a):
+        for ee in range(0, sz_e):
+            if edgearr[wx[ee], wy[ee]] == wl[x]:
+                # Update the value given to this edge
+                edgearrcp[wx[ee], wy[ee]] = newval
+                # Determine if an edge can be placed in this row
+                maxy = npix
+                if wy[ee] + maxy >= sz_y:
+                    maxy = sz_y - wy[ee] - 1
+                flg = 0
+                for y in range(1, maxy):
+                    if edgearrcp[wx[ee], wy[ee]+y] != 0:
+                        flg = 1
+                if flg == 0:
+                    edgearrcp[wx[ee], wy[ee]+shft] = newval+1
+
+    # Now go through the rightmost edge (suffix b)
+    for x in range(sz_b):
+        for ee in range(0, sz_e):
+            if edgearr[wx[ee], wy[ee]] == wr[x]:
+                # Update the value given to this edge
+                edgearrcp[wx[ee], wy[ee]] = newval + 1
+                # Determine if an edge can be placed in this row
+                maxy = npix
+                if wy[ee] - maxy < 0:
+                    maxy = wy[ee] + 1
+                flg = 0
+                for y in range(1, maxy):
+                    if edgearrcp[wx[ee], wy[ee]-y] != 0:
+                        flg = 1
+                if flg == 0:
+                    edgearrcp[wx[ee], wy[ee]-shft] = newval
+
+    return
 
 #######
 #  E  #
@@ -2311,7 +2522,8 @@ def prune_peaks(np.ndarray[ITYPE_t, ndim=1] hist not None,
         for jj in range(pks[ii], pks[ii+1]):
             if hist[jj] == 0:
                 cnt += 1
-        if cnt < (pks[ii+1] - pks[ii])/2:
+        #if cnt < (pks[ii+1] - pks[ii])/2:
+        if cnt < 2:
             # If the difference is unacceptable, both peaks are bad
             msk[ii] = 0
             msk[ii+1] = 0
