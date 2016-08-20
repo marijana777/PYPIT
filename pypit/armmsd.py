@@ -1,8 +1,10 @@
-""" Primary module for guiding the reduction of long slit data
+""" Primary module for guiding the reduction of multi-slit data
 """
 from __future__ import (print_function, absolute_import, division, unicode_literals)
 
 import numpy as np
+from astropy.io import fits
+
 from pypit import arflux
 from pypit import arload
 from pypit import armasters
@@ -13,6 +15,9 @@ from pypit import arsave
 from pypit import arsort
 from pypit import artrace
 from pypit import arqa
+from pypit import arslitmask
+from pypit import arslit
+from pypit import arpool
 
 from linetools import utils as ltu
 
@@ -24,9 +29,21 @@ except:
 # Logging
 msgs = armsgs.get_logger()
 
-def ARMLSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
+def reduce_slit(slit):
+    '''
+    Parameters
+    ----------
+    slit : arslit.Slit object, has everything necessary to produce a reduced spectrum.
+
+    Returns
+    -------
+    TBD
+    '''
+    pass
+
+def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
     """
-    Automatic Reduction and Modeling of Long Slit Data
+    Automatic Reduction and Modeling of Multi-slit Data
 
     Parameters
     ----------
@@ -51,7 +68,7 @@ def ARMLSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
       1 = ...
     """
     status = 0
-
+        
     # Create a list of science exposure classes
     sciexp = armbase.SetupScience(argflag, spect, fitsdict)
     numsci = len(sciexp)
@@ -74,6 +91,20 @@ def ARMLSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
         slf = sciexp[sc]
         scidx = slf._idx_sci[0]
         msgs.info("Reducing file {0:s}, target {1:s}".format(fitsdict['filename'][scidx], slf._target_name))
+        
+        # create Slitmask for reference with data
+        instrument = argflag['run']['spectrograph']
+        hdulist = fits.open(fitsdict['filename'][scidx])
+        if instrument == 'deimos':
+            slitmask = arslitmask.DEIMOS_slitmask(hdulist)
+        elif instrument == 'lris_red':
+            raise NotImplementedError
+        elif instrument == 'lris_blue':
+            raise NotImplementedError
+        else:
+            msg.error('Not prepared to reduce ' + instrument + ' MOS data!')
+        hdulist.close()
+        
         msgs.sciexp = slf  # For QA writing on exit, if nothing else.  Could write Masters too
         if reloadMaster and (sc > 0):
             slf._argflag['masters']['use'] = True
@@ -127,16 +158,6 @@ def ARMLSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
             if ('trace'+slf._argflag['masters']['setup'] not in slf._argflag['masters']['loaded']):
                 ###############
                 # Determine the edges of the spectrum (spatial)
-                #filename = "/Users/rcooke/Desktop/edge_detect/"
-                #filename += "MasterTrace_01_Asher_DEIMOS_CHIP1.fits"
-                #filename += "MasterTrace_01_APFLevy.fits"
-                #filename += "MasterTrace_01_Nicolas_MOS_LRIS.fits"
-                #filename += "MasterTrace_01_Camille.fits"
-                #filename += "MasterTrace_01_Zheng_LRISb_MOS.fits"
-                # Open up the data
-                #import astropy.io.fits as pyfits
-                #mstrace = pyfits.open(filename)[0].data.astype(np.float)
-                #lordloc, rordloc, extord = artrace.trace_orders(slf, mstrace, det, singleSlit=True, pcadesc="PCA trace of the slit edges")
                 lordloc, rordloc, extord = artrace.trace_orders(slf, slf._mstrace[det-1], det, singleSlit=True, pcadesc="PCA trace of the slit edges")
                 slf.SetFrame(slf._lordloc, lordloc, det)
                 slf.SetFrame(slf._rordloc, rordloc, det)
@@ -152,11 +173,25 @@ def ARMLSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
                 slf.SetFrame(slf._lordpix, lordpix, det)
                 slf.SetFrame(slf._rordpix, rordpix, det)
                 # Save QA for slit traces
-                #arqa.slit_trace_qa(slf, mstrace, lordloc, rordloc, extord, normalize=False, desc="Trace of the slit edges")
                 arqa.slit_trace_qa(slf, slf._mstrace[det-1], slf._lordpix[det-1], slf._rordpix[det-1], extord, desc="Trace of the slit edges")
                 #
                 armbase.UpdateMasters(sciexp, sc, det, ftype="flat", chktype="trace")
 
+            # Need to build up Slit objects at this point for passing to Pool.
+            slits = arslit.make_slits(slitmask, lordpix, rordpix)
+            # Put whatever data we need into each slit
+            for slit in slits:
+                slit.read_data(slf._argflag, slf._spect, slf._fitsdict)
+            # Make a Pool
+            ncpus = argflag['run']['ncpus']
+            if ncpus > 1:
+                pool = arpool.InterruptablePool(ncpus)
+                results = pool.map(reduce_slit, slits)
+            else:
+                results = map(reduce_slit, slits)
+
+            # Much will change!
+                
             ###############
             # Prepare the pixel flat field frame
             update = slf.MasterFlatField(fitsdict, det)
