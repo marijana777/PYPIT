@@ -119,7 +119,7 @@ class Slitmask(object):
     def match_traces(self, left_traces, right_traces, idx=slice(None)):
         '''
         Matches the given traces with slits.  
-        Assumes that the passed traces have the shape (n_traces, n_pix).
+        Assumes that the passed traces have the shape (n_pix, n_traces).
 
         Parameters
         ----------
@@ -129,10 +129,10 @@ class Slitmask(object):
 
         Returns
         -------
-        slits : a list of arslit.Slit instances
+        slits : record array of slits from Slitmask
         '''
         assert left_traces.shape == right_traces.shape
-        n_traces, n_pix = left_traces.shape
+        n_pix, n_traces = left_traces.shape
         
         slits = self.slits[idx]
         n_slits = len(slits)
@@ -142,7 +142,8 @@ class Slitmask(object):
         left_edges = np.tile(slits.left_edge, (n_pix, 1)).T
         right_edges = np.tile(slits.right_edge, (n_pix, 1)).T
         slit_idx = []
-        for trace_idx, left_trace, right_trace in enumerate(zip(left_traces, right_traces)):
+        # left/right trace have size n_pix
+        for trace_idx, left_trace, right_trace in enumerate(zip(left_traces.T, right_traces.T)):
             # tile traces up to shape (n_slits, n_pix)
             left_trace = np.tile(left_trace, (n_slits, 1))
             right_trace = np.tile(right_trace, (n_slits, 1))
