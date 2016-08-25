@@ -102,7 +102,7 @@ def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
         elif instrument == 'lris_blue':
             raise NotImplementedError
         else:
-            msg.error('Not prepared to reduce ' + instrument + ' MOS data!')
+            msgs.error('Not prepared to reduce ' + instrument + ' MOS data!')
         hdulist.close()
         
         msgs.sciexp = slf  # For QA writing on exit, if nothing else.  Could write Masters too
@@ -262,7 +262,8 @@ def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
                 msgs.work("Include the facility to correct for gravitational redshifts and time delays (see Pulsar timing work)")
                 msgs.info("Performing a heliocentric correction")
                 # Load the header for the science frame
-                slf._waveids = arvcorr.helio_corr(slf, scidx[0])
+                debugger.set_trace()
+                #slf._waveids = arvcorr.helio_corr(slf, scidx[0])
             else:
                 msgs.info("A heliocentric correction will not be performed")
 
