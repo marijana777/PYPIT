@@ -116,22 +116,43 @@ class Slitmask(object):
     def slit_lengths(self, idx=slice(None)):
         return np.abs(self.slits[idx].left_edge - self.slits[idx].right_edge)
 
-    def match_traces(self, left_traces, right_traces):
+    def match_traces(self, left_traces, right_traces, idx=slice(None)):
         '''
-        Takes measured slit edges and matches them to the registered slit.
-        
+        Matches the given traces with slits.  
+        Assumes that the passed traces have the shape (n_pix, n_traces).
+
         Parameters
         ----------
-        left_traces : float array of left (lower) edge in pixel values
-        right_traces : float array of right (upper) edge in pixel values
+        left_traces : float array of left (lower) edge in mask coords
+        right_traces : float array of right (upper) edge in mask coords
+        idx : bool array, selects a subset of slits
 
         Returns
         -------
-        trace_idx : int array of indices of left_traces and right_traces
-        slit_idx : int array of indices of self.slits, same size as trace_idx
+        slits : record array of slits from Slitmask
         '''
-        pass        
+        assert left_traces.shape == right_traces.shape
+        n_pix, n_traces = left_traces.shape
         
+        slits = self.slits[idx]
+        n_slits = len(slits)
+        # get indices of slitmask.slits that match the input traces
+        # left_edges and right_edges are from the mask design file
+        # tile up to shape (n_slits, n_pix)
+        left_edges = np.tile(slits.left_edge, (n_pix, 1)).T
+        right_edges = np.tile(slits.right_edge, (n_pix, 1)).T
+        slit_idx = []
+        # left/right trace have size n_pix
+        for trace_idx, left_trace, right_trace in enumerate(zip(left_traces.T, right_traces.T)):
+            # tile traces up to shape (n_slits, n_pix)
+            left_trace = np.tile(left_trace, (n_slits, 1))
+            right_trace = np.tile(right_trace, (n_slits, 1))
+            overlaps = np.minimum(right_edges, right_trace) - np.maximum(left_edges, left_trace)
+            # collapse over n_pix
+            overlap = np.sum(overlaps, axis=1)
+            slit_idx.append(np.argmax(overlap))
+        return slits[slit_idx]
+            
     
 class DEIMOS_slitmask(Slitmask):
     '''
@@ -372,6 +393,26 @@ class DEIMOS_slitmask(Slitmask):
         if det >= 5:
             return edges[:, ::-1]
         return edges
+
+    def match_traces(self, left_traces, right_traces, det):
+        '''
+        Overrides the Slitmask.match_traces call to transform coordinates.
+
+        Parameters
+        ----------
+        left_traces : float array of left (lower) edge in pixel values
+        right_traces : float array of right (upper) edge in pixel values
+        det : int, in range(1, 9), specifies coordinate transformation
+
+        Returns
+        -------
+        slits : a list of arslit.Slit instances
+        '''
+        left_mask_coords = self.det_to_mask_coords(left_traces, det)
+        right_mask_coords = self.det_to_mask_coords(right_traces, det)
+        idx = self.slits_in_det(det)
+        return super(type(self), self).match_traces(left_mask_coords,
+                                                    right_mask_coords, idx)
 
     
 class LRIS_slitmask(Slitmask):

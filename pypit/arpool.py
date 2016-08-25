@@ -11,7 +11,6 @@ https://github.com/dfm/emcee/blob/master/emcee/interruptible_pool.py
 from __future__ import (print_function, absolute_import, division, unicode_literals)
 
 import signal
-import functools
 from multiprocessing.pool import Pool
 from multiprocessing import TimeoutError
 

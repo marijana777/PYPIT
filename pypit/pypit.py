@@ -5,6 +5,7 @@ from warnings import resetwarnings, simplefilter
 from time import time
 from multiprocessing import cpu_count
 from pypit import armsgs
+from pypit import archeck
 
 # Import PYPIT routines
 
@@ -65,6 +66,12 @@ def PYPIT(redname, debug=None, progname=__file__, quick=False, ncpus=1, verbose=
     msgs = armsgs.get_logger((logname, debug, verbose))
     from pypit import arload  # This needs to be after msgs is defined!
 
+    # version checking
+    try:
+        archeck.version_check()
+    except archeck.VersionError as err:
+        msgs.error(err.message)
+        
     # First send all signals to messages to be dealt with (i.e. someone hits ctrl+c)
     sigsignal(SIGINT, msgs.signal_handler)
 
@@ -149,10 +156,10 @@ def PYPIT(redname, debug=None, progname=__file__, quick=False, ncpus=1, verbose=
         msgs.info("Data reduction will be performed using PYPIT-ARMED")
         from pypit import armed
         status = armed.ARMED(argflag, spect, fitsdict)
-    elif spect['mosaic']['reduction'] == 'ARMMLD':
-        msgs.info("Data reduction will be performed using PYPIT-ARMMLD")
-        from pypit import armmld
-        status = armed.ARMMLD(argflag, spect, fitsdict)
+    elif spect['mosaic']['reduction'] == 'ARMMSD':
+        msgs.info("Data reduction will be performed using PYPIT-ARMMSD")
+        from pypit import armmsd
+        status = armmsd.ARMMSD(argflag, spect, fitsdict)
     # Check for successful reduction
     if status == 0:
         msgs.info("Data reduction complete")

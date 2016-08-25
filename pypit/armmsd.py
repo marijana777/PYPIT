@@ -43,7 +43,7 @@ def reduce_slit(slit):
 
 def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
     """
-    Automatic Reduction and Modeling of Multi-slit Data
+    Automatic Reduction and Modeling of Multi-Slit Data
 
     Parameters
     ----------
@@ -158,7 +158,7 @@ def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
             if ('trace'+slf._argflag['masters']['setup'] not in slf._argflag['masters']['loaded']):
                 ###############
                 # Determine the edges of the spectrum (spatial)
-                lordloc, rordloc, extord = artrace.trace_orders(slf, slf._mstrace[det-1], det, singleSlit=True, pcadesc="PCA trace of the slit edges")
+                lordloc, rordloc, extord = artrace.trace_slits(slf, slf._mstrace[det-1], det, pcadesc="PCA trace of the slit edges")
                 slf.SetFrame(slf._lordloc, lordloc, det)
                 slf.SetFrame(slf._rordloc, rordloc, det)
 
@@ -178,10 +178,11 @@ def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
                 armbase.UpdateMasters(sciexp, sc, det, ftype="flat", chktype="trace")
 
             # Need to build up Slit objects at this point for passing to Pool.
-            slits = arslit.make_slits(slitmask, lordpix, rordpix)
+            slit_array = slitmask.match_traces(lordloc, rordloc, det)
+            slits = [arslit.Slit(lordpix[i], rordpix[i], name for i, name in enumerate(slit_array.name))]
             # Put whatever data we need into each slit
             for slit in slits:
-                slit.read_data(slf._argflag, slf._spect, slf._fitsdict)
+                slit.read_data(slf)
             # Make a Pool
             ncpus = argflag['run']['ncpus']
             if ncpus > 1:
@@ -189,6 +190,7 @@ def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
                 results = pool.map(reduce_slit, slits)
             else:
                 results = map(reduce_slit, slits)
+            # should check results of slit reduction and respond accordingly
 
             # Much will change!
                 
@@ -293,7 +295,7 @@ def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
             arflux.apply_sensfunc(slf, det, scidx, fitsdict)
 
         # Write 1D spectra
-        arsave.save_1d_spectra(slf)
+        arsave.save_1d_spectra_hdf5(slf, fitsdict)
         # Write 2D images for the Science Frame
         arsave.save_2d_images(slf)
         # Free up some memory by replacing the reduced ScienceExposure class
