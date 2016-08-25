@@ -179,7 +179,7 @@ def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
 
             # Need to build up Slit objects at this point for passing to Pool.
             slit_array = slitmask.match_traces(lordloc, rordloc, det)
-            slits = [arslit.Slit(lordpix[i], rordpix[i], name for i, name in enumerate(slit_array.name))]
+            slits = [arslit.Slit(lordpix[i], rordpix[i], name) for i, name in enumerate(slit_array.name)]
             # Put whatever data we need into each slit
             for slit in slits:
                 slit.read_data(slf)
