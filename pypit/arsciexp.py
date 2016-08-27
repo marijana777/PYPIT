@@ -675,8 +675,7 @@ class ScienceExposure:
         return True
 
     def MasterWaveCalib(self, fitsdict, sc, det):
-        """
-        Generate Master 1D Wave Solution (down slit center)
+        """Generate Master 1D Wave Solution (down slit center)
 
         Parameters
         ----------
