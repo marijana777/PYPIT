@@ -19,6 +19,7 @@ from pypit import armsgs
 from pypit import arproc
 from pypit import arsort
 from pypit import arutils
+from pypit import arpool
 
 try:
     from xastropy.xutils import xdebug as debugger
@@ -46,19 +47,35 @@ class ScienceExposure:
         self._idx_arcs = spect['arc']['index'][snum]
         self._idx_trace = spect['trace']['index'][snum]
         self._idx_std = spect['standard']['index'][snum]
-        if self._argflag['reduce']['usebias'] == 'bias': self._idx_bias = spect['bias']['index'][snum]
-        elif self._argflag['reduce']['usebias'] == 'dark':  self._idx_bias = spect['dark']['index'][snum]
-        else: self._idx_bias = []
-        if self._argflag['reduce']['usetrace'] == 'trace': self._idx_trace = self._spect['trace']['index'][snum]
-        elif self._argflag['reduce']['usetrace'] == 'blzflat': self._idx_trace = self._spect['blzflat']['index'][snum]
-        else: self._idx_trace = []
-        if self._argflag['reduce']['useflat'] == 'pixflat': self._idx_flat = self._spect['pixflat']['index'][snum]
-        elif self._argflag['reduce']['useflat'] == 'blzflat': self._idx_flat = self._spect['blzflat']['index'][snum]
-        else: self._idx_flat = []
+        if self._argflag['reduce']['usebias'] == 'bias':
+            self._idx_bias = spect['bias']['index'][snum]
+        elif self._argflag['reduce']['usebias'] == 'dark':
+            self._idx_bias = spect['dark']['index'][snum]
+        else:
+            self._idx_bias = []
+        if self._argflag['reduce']['usetrace'] == 'trace':
+            self._idx_trace = self._spect['trace']['index'][snum]
+        elif self._argflag['reduce']['usetrace'] == 'blzflat':
+            self._idx_trace = self._spect['blzflat']['index'][snum]
+        else:
+            self._idx_trace = []
+        if self._argflag['reduce']['useflat'] == 'pixflat':
+            self._idx_flat = self._spect['pixflat']['index'][snum]
+        elif self._argflag['reduce']['useflat'] == 'blzflat':
+            self._idx_flat = self._spect['blzflat']['index'][snum]
+        else:
+            self._idx_flat = []
 
         # Set the base name and extract other names that will be used for output files
         self.SetBaseName(fitsdict)
 
+        # Make a Pool
+        ncpus = argflag['run']['ncpus']
+        if ncpus > 1:
+            self._pool = arpool.InterruptablePool(ncpus)
+        else:
+            self._pool = None
+        
         # Initialize the QA for this science exposure
         qafn = "{0:s}/QA_{1:s}.pdf".format(self._argflag['run']['plotsdir'], self._basename)
         if do_qa:
@@ -112,8 +129,66 @@ class ScienceExposure:
         # Initialize some extraction products
         self._ext_boxcar = [None for all in range(ndet)]
         self._ext_optimal = [None for all in range(ndet)]
+        # slits from mask design files
+        self._slits = [None for all in range(ndet)]        
         return
 
+    def split(self, det, frame):
+        '''
+        Takes a frame and splits it into a list of slits.
+
+        Parameters
+        ----------
+        det : int, detector index
+        frame : 2d array
+
+        Returns
+        -------
+        slits : list of 2d arrays
+        '''
+        assert self._slits[det] is not None
+        pass
+
+    
+    def join(self, det, slits):
+        '''
+        Takes a list of slits and joins them into a frame.
+
+        Parameters
+        ----------
+        det : int, detector index
+        slits : list of 2d arrays
+
+        Returns
+        -------
+        joined_frame : 2d array
+        '''
+        assert self._slits[det] is not None
+        pass
+
+    def map(self, det, function, frame, *args, **kwargs):
+        '''
+        Applies the function to each slit in the frame.
+
+        Parameters
+        ----------
+        det : int, detector index
+        function : f(2darray, *args, **kwargs)
+        frame : 2d array, to be split
+
+        Returns
+        -------
+        results : list of outputs
+        '''
+        slits = self.split(det, frame)
+        f = arpool.function_wrapper(function, args, kwargs)
+        if self._pool is None:
+            mapping = map
+        else:
+            mapping = self._pool.map
+        return mapping(f, slits)
+        
+        
     def SetBaseName(self, fitsdict):
         """
         Set the base name that is used for all outputs

@@ -56,3 +56,28 @@ class InterruptiblePool(Pool):
                 self.terminate()
                 self.join()
                 raise    
+
+class function_wrapper(object):
+    '''
+    Lifted gratuitously from emcee.
+
+    This is a hack to make the likelihood function pickleable when ``args``
+    or ``kwargs`` are also included.
+    '''
+    def __init__(self, f, args, kwargs):
+        self.f = f
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self, x):
+        try:
+            return self.f(x, *self.args, **self.kwargs)
+        except:
+            import traceback
+            print('Exception while calling ' + self.f.__name__ + ' in '
+                  self.f.__module__)
+            print("  args:", self.args)
+            print("  kwargs:", self.kwargs)
+            print("  exception:")
+            traceback.print_exc()
+            raise

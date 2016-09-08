@@ -16,8 +16,6 @@ from pypit import arsort
 from pypit import artrace
 from pypit import arqa
 from pypit import arslitmask
-from pypit import arslit
-from pypit import arpool
 
 from linetools import utils as ltu
 
@@ -28,18 +26,6 @@ except:
 
 # Logging
 msgs = armsgs.get_logger()
-
-def reduce_slit(slit):
-    '''
-    Parameters
-    ----------
-    slit : arslit.Slit object, has everything necessary to produce a reduced spectrum.
-
-    Returns
-    -------
-    TBD
-    '''
-    pass
 
 def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
     """
@@ -177,21 +163,9 @@ def ARMMSD(argflag, spect, fitsdict, reuseMaster=False, reloadMaster=True):
                 #
                 armbase.UpdateMasters(sciexp, sc, det, ftype="flat", chktype="trace")
 
-            # Need to build up Slit objects at this point for passing to Pool.
+            # match traced slits to slitmask design file
             slit_array = slitmask.match_traces(lordloc, rordloc, det)
-            slits = [arslit.Slit(lordpix[i], rordpix[i], name) for i, name in enumerate(slit_array.name)]
-            # Put whatever data we need into each slit
-            for slit in slits:
-                slit.read_data(slf)
-            # Make a Pool
-            ncpus = argflag['run']['ncpus']
-            if ncpus > 1:
-                pool = arpool.InterruptablePool(ncpus)
-                results = pool.map(reduce_slit, slits)
-            else:
-                results = map(reduce_slit, slits)
-            # should check results of slit reduction and respond accordingly
-
+            slf._slits[det] = slit_array
             # Much will change!
                 
             ###############
