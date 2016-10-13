@@ -709,7 +709,6 @@ class ScienceExposure:
             if 'wave_calib'+self._argflag['masters']['setup'] not in self._argflag['masters']['loaded']:
                 # Wavelength calibration
                 if True:
-                    debugger.set_trace()
                     # Attempt an automatic wavelength calibration
                     wv_calib, status = ararc.auto_calib(self, sc, det, fitsdict)
                     if status >= 2:

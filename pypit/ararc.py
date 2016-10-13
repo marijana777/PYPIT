@@ -258,6 +258,7 @@ def setup_param(slf, sc, det, fitsdict):
     for lamp in lamps[1:]:
         slmps = slmps+','+lamp
     msgs.info('Loading line list using {:s} lamps'.format(slmps))
+    arcparam['lamps'] = lamps
     arcparam['llist'] = ararclines.load_arcline_list(slf, idx, lamps, disperser,
         wvmnx=arcparam['wvmnx'], modify_parse_dict=modify_dict)
     #llist = ascii.read(aparm['llist'],
@@ -325,9 +326,12 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
     asrt = np.argsort(detlines)
 
     # Load the linelist
+    arcparam = setup_param(slf, sc, det, fitsdict)
+
     idx = slf._spect['arc']['index'][sc]
     disperser = fitsdict["disperser"][idx[0]]
-    lamps = slf._argflag['arc']['calibrate']['lamps']
+    #lamps = slf._argflag['arc']['calibrate']['lamps']
+    lamps = arcparam['lamps']
     linelist = ararclines.load_arcline_list(slf, idx, lamps, disperser, wvmnx=None)
     ll = linelist['wave'].data
     whll = np.where(~ll.mask)
@@ -440,7 +444,7 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
         # Estimate of the central wavelengths
         cwest = allwave[wmx+1][mxsrt][::-1]
 
-        if False:
+        if True:
             cwv = np.linspace(0.0, 1.0, wvs.size)
             plt.subplot(211)
             plt.plot(wvs, cwv, 'b-')
@@ -451,6 +455,7 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
             plt.plot(allwave, wvpdf, 'r-')
             plt.show()
             plt.clf()
+            debugger.set_trace()
 
         tsolscore = np.ones(cwest.size)
         for i in range(cwest.size):
@@ -613,6 +618,7 @@ def auto_calib(slf, sc, det, fitsdict, nsolsrch=10, numsearch=8, maxlin=0.2, npi
                      shift=0.0)
     # QA
     arqa.arc_fit_qa(slf, final_fit)
+    debugger.set_trace()
     # Return
     if pixrms > 0.3:
         msgs.warn("Pixel RMS from autoid exceeded an acceptable value of 0.3")
