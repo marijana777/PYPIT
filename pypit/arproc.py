@@ -15,6 +15,7 @@ from pypit import arplot
 from pypit import arspecobj
 from pypit import arqa
 from pypit import arwave
+from pypit import arpool
 
 try:
     from xastropy.xutils import xdebug as debugger
@@ -475,6 +476,55 @@ def flatfield(slf, sciframe, flatframe, det, snframe=None,
         errframe[wnz] = retframe[wnz]/snframe[wnz]
         return retframe, errframe
 
+def flatnorm_order(o, msflat, ordpix, pixcen, lordpix, rordpix, pixwid, overpix,
+                   dispaxis, maskval, polyorder, polypoints, polyord_blz,
+                   repeat, recnorm):
+    from pypit import arcyextract, arcyproc, arcyutils
+    # Rectify this order
+    recframe = arcyextract.rectify(msflat, ordpix, pixcen[:,o], lordpix[:,o],
+                                   rordpix[:,o], pixwid[o] + overpix,
+                                   maskval, dispaxis)
+    # Take the median along the spatial dimension
+    flatmed = np.median(recframe, axis=1)
+    # Perform a polynomial fitting scheme to determine the blaze profile
+    xarray = np.arange(flatmed.size, dtype=np.float)
+    weight = flatmed.copy()
+    # msgs.work("Routine doesn't support user parameters yet")
+    # msgs.bug("Routine doesn't support user parameters yet")
+    blazet = arcyutils.polyfit_scan(xarray, flatmed.copy(), weight, maskval, polyorder, polypoints, repeat)
+     # Remove the masked endpoints
+    outx, outy, outm, lox, hix = arcyproc.remove_maskedends(xarray, flatmed, blazet, maskval)
+    # Inspect the end points and extrapolate from the best fitting end pixels
+    derv = (outm[1:]-outm[:-1])/(outx[1:]-outx[:-1])
+    dervx = 0.5*(outx[1:]+outx[:-1])
+    derv2 = (derv[1:]-derv[:-1])/(dervx[1:]-dervx[:-1])
+    medv = np.median(derv2)
+    madv = 1.4826*np.median(np.abs(derv2-medv))
+    blaze = arcyproc.blaze_fitends(outx, outy, outm, derv2-medv, madv, polyord_blz, polypoints)
+    #plt.plot(xarray,flatmed,'k-',drawstyle='steps')
+    #plt.plot(xarray, blaze, 'r-')
+    #plt.show()
+    #np.savetxt("check_blaze_ord{0:d}.txt".format(o),np.transpose((xarray,flatmed)))
+    # Divide the flat by the fitted flat profile
+    finalblaze = np.ones(recframe.shape[0])
+    finalblaze[lox:hix] = blaze.copy()
+    blazenrm = finalblaze.reshape((finalblaze.size, 1)).repeat(recframe.shape[1], axis=1)
+    recframe /= blazenrm
+    # Sort the normalized frames along the dispersion direction
+    recsort = np.sort(recframe, axis=0)
+    # Find the mean value, but only consider the "innermost" 50 per cent of pixels (i.e. the pixels closest to 1.0)
+    recmean = arcyproc.scale_blaze(recsort, maskval)
+    #rows = np.arange(recsort.shape[0]/4,(3*recsort.shape[0])/4,dtype=np.int)
+    #w = np.ix_(rows,np.arange(recframe.shape[1]))
+    #recmean = np.mean(recsort[w],axis=0)
+    if recnorm:
+        for i in range(recmean.size):
+            recframe[:, i] /= recmean[i]
+    # Undo the rectification
+    normflat_unrec = arcyextract.rectify_undo(recframe, pixcen[:,o], lordpix[:,o],
+                                              rordpix[:,o], pixwid[o], maskval,
+                                              msflat.shape[0], msflat.shape[1], dispaxis)
+    return normflat_unrec, blaze.copy(), lox, hix, flatmed.copy()
 
 def flatnorm(slf, det, msflat, maskval=-999999.9, overpix=6, plotdesc=""):
     """ Normalize the flat-field frame
@@ -529,63 +579,48 @@ def flatnorm(slf, det, msflat, maskval=-999999.9, overpix=6, plotdesc=""):
     msgs.work("Must consider different amplifiers when normalizing and determining the blaze function")
     msgs.work("Multiprocess this step to make it faster")
     flat_ext1d = maskval*np.ones((msflat.shape[0],norders))
-    for o in range(norders):
-        # Rectify this order
-        recframe = arcyextract.rectify(msflat, ordpix, slf._pixcen[det-1][:,o], slf._lordpix[det-1][:,o],
-                                       slf._rordpix[det-1][:,o], slf._pixwid[det-1][o]+overpix, maskval, slf._dispaxis)
-        if slf._argflag["reduce"]["FlatMethod"].lower()=="polyscan":
-            polyorder = slf._argflag["reduce"]["FlatParams"][0]
-            polypoints = slf._argflag["reduce"]["FlatParams"][1]
-            repeat = slf._argflag["reduce"]["FlatParams"][2]
-            # Take the median along the spatial dimension
-            flatmed = np.median(recframe, axis=1)
-            # Perform a polynomial fitting scheme to determine the blaze profile
-            xarray = np.arange(flatmed.size, dtype=np.float)
-            weight = flatmed.copy()
-            msgs.work("Routine doesn't support user parameters yet")
-            msgs.bug("Routine doesn't support user parameters yet")
-            blazet = arcyutils.polyfit_scan(xarray, flatmed.copy(), weight, maskval, polyorder, polypoints, repeat)
-             # Remove the masked endpoints
-            outx, outy, outm, lox, hix = arcyproc.remove_maskedends(xarray, flatmed, blazet, maskval)
-            # Inspect the end points and extrapolate from the best fitting end pixels
-            derv = (outm[1:]-outm[:-1])/(outx[1:]-outx[:-1])
-            dervx = 0.5*(outx[1:]+outx[:-1])
-            derv2 = (derv[1:]-derv[:-1])/(dervx[1:]-dervx[:-1])
-            medv = np.median(derv2)
-            madv = 1.4826*np.median(np.abs(derv2-medv))
-            blaze = arcyproc.blaze_fitends(outx, outy, outm, derv2-medv, madv, polyord_blz, polypoints)
-            #plt.plot(xarray,flatmed,'k-',drawstyle='steps')
-            #plt.plot(xarray, blaze, 'r-')
-            #plt.show()
-            #np.savetxt("check_blaze_ord{0:d}.txt".format(o),np.transpose((xarray,flatmed)))
-            # Divide the flat by the fitted flat profile
-            finalblaze = np.ones(recframe.shape[0])
-            finalblaze[lox:hix] = blaze.copy()
-            blazenrm = finalblaze.reshape((finalblaze.size, 1)).repeat(recframe.shape[1], axis=1)
-            recframe /= blazenrm
-            # Store the blaze for this order
-            msblaze[lox:hix,o] = blaze.copy()
-            flat_ext1d[:,o] = flatmed.copy()
-            # Sort the normalized frames along the dispersion direction
-            recsort = np.sort(recframe, axis=0)
-            # Find the mean value, but only consider the "innermost" 50 per cent of pixels (i.e. the pixels closest to 1.0)
-            recmean = arcyproc.scale_blaze(recsort, maskval)
-            #rows = np.arange(recsort.shape[0]/4,(3*recsort.shape[0])/4,dtype=np.int)
-            #w = np.ix_(rows,np.arange(recframe.shape[1]))
-            #recmean = np.mean(recsort[w],axis=0)
-            if slf._argflag['pixflat']['norm']['recnorm']:
-                for i in range(recmean.size):
-                    recframe[:, i] /= recmean[i]
-            # Undo the rectification
-            normflat_unrec = arcyextract.rectify_undo(recframe, slf._pixcen[det-1][:,o], slf._lordpix[det-1][:,o],
-                                                      slf._rordpix[det-1][:,o], slf._pixwid[det-1][o], maskval,
-                                                      msflat.shape[0], msflat.shape[1], slf._dispaxis)
-            # Apply the normalized flatfield for this order to the master normalized frame
-            msnormflat = arcyproc.combine_nrmflat(msnormflat, normflat_unrec, slf._pixcen[det-1][:,o],
-                                                  slf._lordpix[det-1][:,o], slf._rordpix[det-1][:,o],
-                                                  slf._pixwid[det-1][o]+overpix, maskval, slf._dispaxis)
-        else:
-            msgs.error("Flatfield method {0:s} is not supported".format(slf._argflag["reduce"]["FlatMethod"]))
+
+    # make arguments for flatnorm_order
+    pixcen = slf._pixcen[det-1]
+    lordpix = slf._lordpix[det-1]
+    rordpix = slf._rordpix[det-1]
+    pixwid = slf._pixwid[det-1]
+    dispaxis = slf._dispaxis
+    polyorder = slf._argflag["reduce"]["FlatParams"][0]
+    polypoints = slf._argflag["reduce"]["FlatParams"][1]
+    repeat = slf._argflag["reduce"]["FlatParams"][2]
+    recnorm = slf._argflag['pixflat']['norm']['recnorm']
+    args = (msflat, ordpix, pixcen, lordpix, rordpix, pixwid, overpix,
+            dispaxis, maskval, polyorder, polypoints, polyord_blz,
+            repeat, recnorm)
+    order_function = arpool.function_wrapper(flatnorm_order, args, {})
+    
+    orders = range(norders)
+
+    # make a Pool
+    ncpus = slf._argflag['run']['ncpus']
+    if ncpus > 1:
+        pool = arpool.InterruptiblePool(ncpus)
+        mapping = pool.map
+    else:
+        mapping = map
+
+    # map out child processes
+    from time import time
+    start = time()
+    msgs.info("Mapping flatnorm to all orders.")
+    normflat_unrec, blaze, lox, hix, flatmed  = zip(*mapping(order_function, orders))
+    end = time()
+    msgs.info("Parallel flatnorm took {0:.2f} seconds".format(end - start))
+              
+    for o in orders:
+        # Apply the normalized flatfield for this order to the master normalized frame
+        msnormflat = arcyproc.combine_nrmflat(msnormflat, normflat_unrec[o], slf._pixcen[det-1][:,o],
+                                              slf._lordpix[det-1][:,o], slf._rordpix[det-1][:,o],
+                                              slf._pixwid[det-1][o]+overpix, maskval, slf._dispaxis)
+        msblaze[lox[o]: hix[o], o] = blaze[o]
+        flat_ext1d[:,o] = flatmed[o]
+        
     # Send the blaze away to be plotted and saved
     msgs.work("Perform a 2D PCA analysis on echelle blaze fits?")
     arplot.plot_orderfits(slf, msblaze, flat_ext1d, desc=plotdesc)
