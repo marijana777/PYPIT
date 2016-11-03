@@ -74,7 +74,7 @@ class function_wrapper(object):
             return self.f(x, *self.args, **self.kwargs)
         except:
             import traceback
-            print('Exception while calling ' + self.f.__name__ + ' in '
+            print('Exception while calling ' + self.f.__name__ + ' in ' +
                   self.f.__module__)
             print("  args:", self.args)
             print("  kwargs:", self.kwargs)
