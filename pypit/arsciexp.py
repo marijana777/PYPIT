@@ -72,7 +72,7 @@ class ScienceExposure:
         # Make a Pool
         ncpus = argflag['run']['ncpus']
         if ncpus > 1:
-            self._pool = arpool.InterruptablePool(ncpus)
+            self._pool = arpool.InterruptiblePool(ncpus)
         else:
             self._pool = None
         
