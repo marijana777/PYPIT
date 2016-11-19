@@ -1021,6 +1021,16 @@ class BaseArgFlag(BaseFunctions):
         v = key_float(v)
         self.update(v)
 
+    def reduce_setup(self, v):
+        """ Reduce a subset of the setups
+        Parameters
+        ----------
+        v : str
+          Setups to reduce, separated by _,  e.g. 01_02
+        """
+        v = key_none(v)
+        self.update(v)
+
     def reduce_skysub_bspline_everyn(self, v):
         """ bspline fitting parameters
 

@@ -41,6 +41,14 @@ def SetupScience(fitsdict):
     else:
         do_qa = True
         bad_to_unknown = False
+    # Load setup info
+    setup_file, nexist = arsort.get_setup_file()
+    if nexist == 1:
+        prev_setup_dict = arsort.load_setup()
+    # Restrict on setup?
+    if settings.argflag['reduce']['setup'] is not None:
+        if nexist == 0:
+            msgs.error("No .setup file provided.  Cannot use 'reduce setup' in Settings file")
     # Sort the data
     msgs.bug("Files and folders should not be deleted -- there should be an option to overwrite files automatically if they already exist, or choose to rename them if necessary")
     filesort = arsort.sort_data(fitsdict, set_bad_to_unknwn=bad_to_unknown)
@@ -55,15 +63,26 @@ def SetupScience(fitsdict):
     # Create the list of science exposures
     numsci = np.size(filesort['science'])
     sciexp = []
+    scii = []
     for i in range(numsci):
-        sciexp.append(arsciexp.ScienceExposure(i, fitsdict, do_qa=do_qa))
+        add = True
+        if settings.argflag['reduce']['setup'] is not None:
+            setup = arsort.instr_setup(i, 1, fitsdict, prev_setup_dict)
+            if setup not in settings.argflag['reduce']['setup']:
+                add = False
+                msgs.info("Skipping science frame with setup={:s}".format(setup))
+        if add:
+            sciexp.append(arsciexp.ScienceExposure(i, fitsdict, do_qa=do_qa))
+            scii.append(i)
+    numsci = len(sciexp)
     # Generate setup and group dicts
     setup_dict = {}
     group_dict = {}
     for sc in range(numsci):
         scidx = sciexp[sc]._idx_sci[0]
         # Run setup
-        setup = arsort.instr_setup(sc, 1, fitsdict, setup_dict)
+        setup = arsort.instr_setup(scii[sc], 1, fitsdict, setup_dict)
+        msgs.info("setup={:s}".format(setup))
         # Set group_key
         setup_val = ['{:02d}'.format(int(setup)+i)
                      for i in range(settings.spect['mosaic']['ndet'])]
@@ -94,7 +113,6 @@ def SetupScience(fitsdict):
                         if key == 'science':  # Add target name
                             group_dict[group_key]['sciobj'].append(fitsdict['target'][scidx])
     # Write setup -- only if not present
-    setup_file, nexist = arsort.get_setup_file()
     if nexist == 0:
         arsort.write_setup(setup_dict)
     elif nexist == 1: # Compare

@@ -36,6 +36,7 @@ reduce masters setup None            #
 reduce masters reuse False            # Reuse masters that have already been created (True/False)
 reduce pixel locations None           # If desired, a fits file can be specified (of the appropriate form) to specify the locations of the pixels on the detector
 reduce pixel size 2.5            # The size of the extracted pixels (as an scaled number of Arc FWHM), -1 will not resample
+reduce setup None                # Reduce a subset of the setups (e.g. 01_02)
 reduce skysub perform True       # Subtract the sky background from the data?
 reduce skysub method bspline     # Method used for the sky subtraction
 reduce skysub bspline everyn 20  # bspline fitting parameters
