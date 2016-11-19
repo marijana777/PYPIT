@@ -69,6 +69,8 @@ def main(args):
         f.write("output overwrite True\n")
         f.write("output sorted {:s}\n".format(root))
         f.write("\n")
+        f.write("# Reduce\n")
+        f.write("\n")
         f.write("# Read in the data\n")
         f.write("data read\n")
         f.write(" {:s}*{:s}*\n".format(args.files_root, args.extension))
