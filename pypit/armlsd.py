@@ -74,14 +74,17 @@ def ARMLSD(fitsdict, reuseMaster=False, reloadMaster=True):
         for kk in range(settings.spect['mosaic']['ndet']):
             det = kk + 1  # Detectors indexed from 1
             slf.det = det
+            # Setup
+            setup = arsort.instr_setup(sc, det, fitsdict, setup_dict, must_exist=True)
+            if settings.argflag['reduce']['setup'] is not None:
+                if setup not in settings.argflag['reduce']['setup']:
+                    continue
+            settings.argflag['reduce']['masters']['setup'] = setup
             ###############
             # Get amplifier sections
             arproc.get_ampsec_trimmed(slf, fitsdict, det, scidx)
-            # Setup
-            setup = arsort.instr_setup(sc, det, fitsdict, setup_dict, must_exist=True)
-            settings.argflag['reduce']['masters']['setup'] = setup
             ###############
-            # Generate master bias frame
+            # Generate master bias frame (not required)
             update = slf.MasterBias(fitsdict, det)
             if update and reuseMaster:
                 armbase.UpdateMasters(sciexp, sc, det, ftype="bias")

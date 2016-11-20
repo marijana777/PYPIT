@@ -303,7 +303,6 @@ class ScienceExposure:
         boolean : bool
           Should other ScienceExposure classes be updated?
         """
-
         # If the master bias is already made, use it
         if self._msbias[det-1] is not None:
             msgs.info("An identical master {0:s} frame already exists".format(settings.argflag['bias']['useframe']))
@@ -324,6 +323,9 @@ class ScienceExposure:
                 msgs.info("Preparing a master {0:s} frame".format(settings.argflag['bias']['useframe']))
                 # Get all of the bias frames for this science frame
                 ind = self._idx_bias
+                if len(ind) == 0:
+                    msgs.warn("No bias or dark frames. Either find some or use 'bias useframe [overscan or none]'")
+                    msgs.error("Exiting")
                 # Load the Bias/Dark frames
                 frames = arload.load_frames(fitsdict, ind, det, frametype=settings.argflag['bias']['useframe'])
                 msbias = arcomb.comb_frames(frames, det, 'bias', printtype=settings.argflag['bias']['useframe'])

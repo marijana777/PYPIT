@@ -174,10 +174,24 @@ adding an entry in the spect read/end block::
     spect end
 
 Note that the precise filename is required (without the path).
+It is necessary to either skip or properly identify the filetype
+of every file labelled 'unknown'.
 
 Run PYPIT on this settings file in calcheck mode until you
 are happy with the arrangement.  We *recommend* you continue
 to inspect the .group file that is generated.
+
+Bias
+----
+
+The default in ARMLSD is to use a bias frame to aid in bias
+subtraction.  If you have no bias frames, add::
+
+    bias useframe overscan
+    or
+    bias useframe none
+
+to the Settings File.
 
 Settings File, line by line
 +++++++++++++++++++++++++++
