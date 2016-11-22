@@ -103,9 +103,11 @@ def SetupScience(fitsdict):
                 for key in filesort.keys():
                     if key in ['unknown', 'dark']:
                         continue
-                    for idx in settings.spect[key]['index'][sc]:
+                    for idx in settings.spect[key]['index'][scidx]:
                         # Only add if new
                         if fitsdict['filename'][idx] not in group_dict[group_key][key]:
+                            if key == 'arc':
+                                debugger.set_trace()
                             group_dict[group_key][key].append(fitsdict['filename'][idx])
                             if key == 'standard':  # Add target name
                                 group_dict[group_key]['stdobj'].append(fitsdict['target'][idx])
