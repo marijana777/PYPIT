@@ -108,7 +108,6 @@ def PYPIT(redname, debug=None, progname=__file__, quick=False, ncpus=1, verbosit
                    "run spectrograph <name>")
     msgs.info("Reducing data from the {0:s} spectrograph".format(specname))
 
-
     # Determine the type of reduction used for this spectrograph
     redtype = None
     # Get the software path
