@@ -82,7 +82,6 @@ def SetupScience(fitsdict):
         scidx = sciexp[sc]._idx_sci[0]
         # Run setup
         setup = arsort.instr_setup(scii[sc], 1, fitsdict, setup_dict)
-        msgs.info("setup={:s}".format(setup))
         # Set group_key
         setup_val = ['{:02d}'.format(int(setup)+i)
                      for i in range(settings.spect['mosaic']['ndet'])]
