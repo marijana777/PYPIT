@@ -22,7 +22,7 @@ except ImportError:
 msgs = armsgs.get_logger()
 
 
-def holy1(arc_spec, lamps, nsolsrch=10, numsearch=8, maxlin=0.2, npixcen=0.005, sig_rej=2.0):
+def holy1(arc_spec, lamps, disperser, nsolsrch=10, numsearch=8, maxlin=0.2, npixcen=0.005, sig_rej=2.0):
     """ Automatically identify arc lines
     Parameters
     ----------
@@ -50,6 +50,8 @@ def holy1(arc_spec, lamps, nsolsrch=10, numsearch=8, maxlin=0.2, npixcen=0.005, 
         2 = unacceptable solution (pixel RMS > 0.2)
     """
     from pypit import arcyarc
+    from pypit import arutils as arut
+    slf = arut.dummy_self()
 
     # Set the default status
     status = 0
@@ -77,11 +79,10 @@ def holy1(arc_spec, lamps, nsolsrch=10, numsearch=8, maxlin=0.2, npixcen=0.005, 
     # Load the linelist
     #arcparam = setup_param(slf, sc, det, fitsdict)
 
-    idx = slf._spect['arc']['index'][sc]
-    disperser = fitsdict["disperser"][idx[0]]
-    #lamps = slf._argflag['arc']['calibrate']['lamps']
+    #idx = slf._spect['arc']['index'][sc]
+    #disperser = fitsdict["disperser"][idx[0]]
     #lamps = arcparam['lamps']
-    linelist = ararclines.load_arcline_list(slf, idx, lamps, disperser, wvmnx=None)
+    linelist = ararclines.load_arcline_list(slf, -1, lamps, disperser, wvmnx=None)
     ll = linelist['wave'].data
     whll = np.where(~ll.mask)
     ions = linelist['Ion'].data
