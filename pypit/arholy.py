@@ -283,7 +283,7 @@ def holy1(arc_spec, lamps, disperser, nsolsrch=10, numsearch=8, maxlin=0.2, npix
                                                      sigma=sig_rej, minv=0.0, maxv=npixels-1.0)
                 model = arutils.func_val(coeff, detlines, "legendre", minv=0.0, maxv=npixels-1.0)
                 # Calculate Angstroms per pixel at the location of each detection
-                dcoeff = arutils.func_deriv(coeff, "legendre", 1)
+                dcoeff = arutils.func_der(coeff, "legendre", 1)
                 dmodel = arutils.func_val(dcoeff, detlines, "legendre", minv=0.0, maxv=npixels-1.0)
                 wavids, wavidx = arcyarc.identify(linelist, model)
                 mskids = np.zeros_like(wavids)
