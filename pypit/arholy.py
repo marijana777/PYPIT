@@ -154,6 +154,7 @@ def holy1(arc_spec, lamps, disperser, nsolsrch=10, numsearch=8, maxlin=0.2, npix
         wvcent = np.zeros(ncols)
         wvindx = -1*np.ones((ncols*nindx, 3))
         cnt = 0
+        # Seems a bit of overkill and could be sped up in Cython
         for x in range(nrows):
             for y in range(len(res[x])):
                 dx = detlines[detidx[x, -1]] - detlines[detidx[x, 0]]
@@ -174,6 +175,7 @@ def holy1(arc_spec, lamps, disperser, nsolsrch=10, numsearch=8, maxlin=0.2, npix
 
         wvs = wvcent[np.where(wvcent != 0.0)]
         wvd = wvdisp[np.where(wvdisp != 0.0)]
+        # I don't follow this last KDE
         allwave = np.linspace(wvs.min(), wvs.max(), (np.max(linelist)-np.min(linelist))/wvd.min())
         bwest = npixcen*np.median(wvd)  # Assume the central wavelength can be determined within npixcen
         msgs.info("Constructing KDE with bandwidth {0:f}".format(bwest))
