@@ -80,7 +80,7 @@ def holy1(arc_spec, lamps, disperser, nsolsrch=10, numsearch=8, maxlin=0.2, npix
     #disperser = fitsdict["disperser"][idx[0]]
     #lamps = arcparam['lamps']
     linelist = ararclines.load_arcline_list(slf, -1, lamps, disperser,
-                                            wvmnx=[2900.,9000.])
+                                            wvmnx=[5000.,9000.])
     ll = linelist['wave'].data
     whll = np.where(~ll.mask)
     ions = linelist['Ion'].data
