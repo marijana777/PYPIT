@@ -465,3 +465,4 @@ def detect_lines(censpec):
     # Return
     return tampl, tcent, twid, w, satsnd, yprep
 
+##########################################################
