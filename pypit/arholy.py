@@ -1,17 +1,14 @@
 from __future__ import (print_function, absolute_import, division, unicode_literals)
 
 import numpy as np
-from pypit import arpca
-from pypit import arparse as settings
 from pypit import armsgs
-from pypit import arsave
 from pypit import arutils
-from pypit.arplot import get_dimen as get_dimen
 from pypit import ararclines
 from pypit import arqa
 from matplotlib import pyplot as plt
-import os
-
+from scipy.spatial import KDTree
+from sklearn.neighbors import KernelDensity
+from collections import Counter
 
 try:
     from xastropy.xutils import xdebug as debugger
@@ -66,7 +63,7 @@ def holy1(arc_spec, lamps, disperser, nsolsrch=10, numsearch=8, maxlin=0.2, npix
 
     # Extract the arc
     #msgs.work("Detecting lines..")
-    tampl, tcent, twid, w, satsnd, yprep = detect_lines()
+    tampl, tcent, twid, w, satsnd, yprep = detect_lines(arc_spec)
 
     # Cut down to the good ones
     detlines = tcent[w]
@@ -109,6 +106,7 @@ def holy1(arc_spec, lamps, disperser, nsolsrch=10, numsearch=8, maxlin=0.2, npix
     solwaves = []
     solwvidx = []
     solwmask = []
+    debugger.set_trace()
     for tt in range(2):
         if tt == 0:
             msgs.info("Assuming pixels correlate with wavelength")
@@ -383,24 +381,15 @@ def holy1(arc_spec, lamps, disperser, nsolsrch=10, numsearch=8, maxlin=0.2, npix
     return final_fit, status
 
 
-def detect_lines(censpec, MK_SATMASK=False):
+def detect_lines(censpec):
     """
     Extract an arc down the center of the chip and identify
     statistically significant lines for analysis.
 
     Parameters
     ----------
-    slf : Class instance
-      An instance of the Science Exposure class
-    det : int
-      Index of the detector
-    msarc : ndarray
-      Calibration frame that will be used to identify slit traces (in most cases, the slit edge)
     censpec : ndarray, optional
       A 1D spectrum to be searched for significant detections
-    MK_SATMASK : bool, optional
-      Generate a mask of arc line saturation streaks? Mostly used for echelle data
-      when saturation in one order can cause bleeding into a neighbouring order.
 
     Returns
     -------
@@ -421,31 +410,8 @@ def detect_lines(censpec, MK_SATMASK=False):
     from pypit import arcyarc
     # Extract a rough spectrum of the arc in each order
     msgs.info("Detecting lines")
-    msgs.info("Extracting an approximate arc spectrum at the centre of the chip")
-    if msgs._debug['flexure']:
-        ordcen = slf._pixcen
-    else:
-        ordcen = slf.GetFrame(slf._pixcen, det)
-    if censpec is None:
-        #pixcen = np.arange(msarc.shape[slf._dispaxis], dtype=np.int)
-        #ordcen = (msarc.shape[1-slf._dispaxis]/2)*np.ones(msarc.shape[slf._dispaxis],dtype=np.int)
-        #if len(ordcen.shape) != 1: msgs.error("The function artrace.model_tilt should only be used for"+msgs.newline()+"a single spectrum (or order)")
-        #ordcen = ordcen.reshape((ordcen.shape[0],1))
-        msgs.work("No orders being masked at the moment")
-        # Average over several pixels to remove some random fluctuations, and increase S/N
-        op1 = ordcen+1
-        op2 = ordcen+2
-        om1 = ordcen-1
-        om2 = ordcen-2
-        censpec = (msarc[:,ordcen]+msarc[:,op1]+msarc[:,op2]+msarc[:,om1]+msarc[:,om2])/5.0
-    # Generate a saturation mask
-    if MK_SATMASK:
-        ordwid = 0.5*np.abs(slf._lordloc[det-1] - slf._rordloc[det-1])
-        msgs.info("Generating a mask of arc line saturation streaks")
-        satmask = arcyarc.saturation_mask(msarc, slf._nonlinear[det-1])
-        satsnd = arcyarc.order_saturation(satmask, ordcen, (ordwid+0.5).astype(np.int), slf._dispaxis)
-    else:
-        satsnd = np.zeros_like(ordcen)
+    # Mask
+    satsnd = np.zeros_like(censpec)
     # Detect the location of the arc lines
     msgs.info("Detecting the strongest, nonsaturated lines")
     #####
@@ -454,9 +420,9 @@ def detect_lines(censpec, MK_SATMASK=False):
     #####
     # New algorithm for arc line detection
     #pixels=[]
-    siglev = 6.0*slf._argflag['arc']['calibrate']['detection']
+    siglev = 6.0*6.0#slf._argflag['arc']['calibrate']['detection']
     bpfit = 5  # order of the polynomial used to fit the background 'continuum'
-    fitp = slf._argflag['arc']['calibrate']['nfitpix']
+    fitp = 5 # slf._argflag['arc']['calibrate']['nfitpix']
     if len(censpec.shape) == 3: detns = censpec[:, 0].flatten()
     else: detns = censpec.copy()
     xrng = np.arange(float(detns.size))
