@@ -79,7 +79,8 @@ def holy1(arc_spec, lamps, disperser, nsolsrch=10, numsearch=8, maxlin=0.2, npix
     #idx = slf._spect['arc']['index'][sc]
     #disperser = fitsdict["disperser"][idx[0]]
     #lamps = arcparam['lamps']
-    linelist = ararclines.load_arcline_list(slf, -1, lamps, disperser, wvmnx=None)
+    linelist = ararclines.load_arcline_list(slf, -1, lamps, disperser,
+                                            wvmnx=[2900.,9000.])
     ll = linelist['wave'].data
     whll = np.where(~ll.mask)
     ions = linelist['Ion'].data
@@ -106,7 +107,6 @@ def holy1(arc_spec, lamps, disperser, nsolsrch=10, numsearch=8, maxlin=0.2, npix
     solwaves = []
     solwvidx = []
     solwmask = []
-    debugger.set_trace()
     for tt in range(2):
         if tt == 0:
             msgs.info("Assuming pixels correlate with wavelength")
