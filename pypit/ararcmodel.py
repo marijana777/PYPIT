@@ -28,15 +28,17 @@ import pypit
 model_path = pypit.__path__[0]+'/data/arc_lines/Model/'
 
 
-def add_to_lists(tbl):
+def add_to_lists(itbl):
     """ Add to existing lamp lists (or generate a new one)
     EXPERTS ONLY
 
     Parameters
     ----------
-    tbl
+    itbl : Table
 
     """
+    tbl = itbl.copy()  # We are going to modify the input table
+
     # Check input table
     req_keys = ['ion', 'wave', 'NIST', 'Origin', 'amp']
     tbl_keys = tbl.keys()
@@ -45,6 +47,19 @@ def add_to_lists(tbl):
             assert key in tbl_keys
         except AssertionError:
             msgs.error("Key {:s} not include in input table!".format(key))
+
+    # Reformat ion and Origin as needed (str issues)
+    for key in ['ion', 'Origin']:
+        items = tbl[key].data.tolist()
+        if key == 'ion':
+            rjust = 10
+        else:
+            rjust = 25
+        for jj in range(len(items)):
+            items[jj] = items[jj].strip().rjust(rjust)
+        tbl.remove_column(key)
+        tbl[key] = items
+    debugger.set_trace()
 
     # Loop on ions
     ions = np.unique(tbl['ion'].data)
@@ -55,7 +70,7 @@ def add_to_lists(tbl):
         # New Table?
         tbl_file = model_path+'{:s}_model.ascii'.format(ion)
         if not os.path.isfile(tbl_file):
-            sub_tbl.write(tbl_file, format='ascii.fixed_width')
+            sub_tbl[req_keys].write(tbl_file, format='ascii.fixed_width')
             msgs.info("Generating new arc model table: {:s}".format(tbl_file))
         else:
             msgs.warn("Not ready to update table")
