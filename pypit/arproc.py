@@ -928,7 +928,7 @@ def reduce_frame(slf, sciframe, scidx, fitsdict, det, standard=False):
     return True
 
 
-def scattered_light(slf, frame):
+def scattered_light(slf, frame, det):
     """ Remove scattered light from frame
 
     Parameters
@@ -945,7 +945,24 @@ def scattered_light(slf, frame):
     slframe : ndarray
       The input frame with scattered light removed
     """
+    from pypit import arcyutils
 
+    # Determine which pixels contain data, and which pixels are between slits
+    ordpix = arcyutils.order_pixels(slf._pixlocn[det-1], slf._lordloc[det-1], slf._rordloc[det-1], 2)
+    ordpix[np.where(ordpix>0)] = 1
+
+    # Create an array to use with the fitting
+    xfit = np.arange(frame.shape[1])
+
+    # Create an output frame
+    slframe = np.zeros_like(frame)
+
+    for ii in range(frame.shape[0]):
+        imsk = ordpix[ii, :]
+        msk, coeff = arutils.robust_polyfit(xfit, frame[ii, :], 3, sigma=2.0,
+                                            function='bspline', everyn=,
+                                            initialmask=imsk, forceimask=True)
+        slframe[ii, :] = arutils.func_val(coeff, xfit, 'bspline')
     return slframe
 
 
