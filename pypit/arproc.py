@@ -51,7 +51,7 @@ def background_subtraction(slf, sciframe, varframe, k=3, crsigma=20.0, maskval=-
     xint = slf._pixlocn[:,0,0]
     # Find which pixels are within the order edges
     msgs.info("Identifying pixels within each order")
-    ordpix = arcyutils.order_pixels(slf._pixlocn, slf._lordloc, slf._rordloc)
+    ordpix = arcyutils.order_pixels(slf._pixlocn, slf._lordloc, slf._rordloc, 0)
     allordpix = ordpix.copy()
     msgs.info("Applying bad pixel mask")
     ordpix *= (1-slf._bpix.astype(np.int))
@@ -266,7 +266,7 @@ def bg_subtraction(slf, det, sciframe, varframe, crpix, tracemask=None,
     msgs.info("Identifying pixels within each order")
     ordpix = arcyutils.order_pixels(slf._pixlocn[det-1],
                                     slf._lordloc[det-1]*0.95+slf._rordloc[det-1]*0.05,
-                                    slf._lordloc[det-1]*0.05+slf._rordloc[det-1]*0.95)
+                                    slf._lordloc[det-1]*0.05+slf._rordloc[det-1]*0.95, 0)
     msgs.info("Applying bad pixel mask")
     ordpix *= (1-slf._bpix[det-1].astype(np.int)) * (1-crpix.astype(np.int))
     if tracemask is not None: ordpix *= (1-tracemask.astype(np.int))
@@ -514,7 +514,7 @@ def flatnorm(slf, det, msflat, maskval=-999999.9, overpix=6, plotdesc=""):
     #xint = slf._pixlocn[det-1][:,0,0]
     # Find which pixels are within the order edges
     msgs.info("Identifying pixels within each order")
-    ordpix = arcyutils.order_pixels(slf._pixlocn[det-1], slf._lordloc[det-1], slf._rordloc[det-1])
+    ordpix = arcyutils.order_pixels(slf._pixlocn[det-1], slf._lordloc[det-1], slf._rordloc[det-1], 0)
     msgs.info("Applying bad pixel mask")
     ordpix *= (1-slf._bpix[det-1].astype(np.int))
     mskord = np.zeros(msflat.shape)
@@ -926,6 +926,27 @@ def reduce_frame(slf, sciframe, scidx, fitsdict, det, standard=False):
         slf._bgframe[det-1] += bgcorr_box
     # Return
     return True
+
+
+def scattered_light(slf, frame):
+    """ Remove scattered light from frame
+
+    Parameters
+    ----------
+    slf : class
+      Science Exposure class
+    frame : ndarray
+      2D array containing scattered light that needs to be removed
+    det : int
+      Detector index
+
+    Returns
+    -------
+    slframe : ndarray
+      The input frame with scattered light removed
+    """
+
+    return slframe
 
 
 def sn_frame(slf, sciframe, idx):

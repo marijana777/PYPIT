@@ -734,11 +734,30 @@ def mediansort(np.ndarray[DTYPE_t, ndim=1] arrayA not None,
 
 @cython.boundscheck(False)
 def order_pixels(np.ndarray[DTYPE_t, ndim=3] pixlocn not None,
-                np.ndarray[DTYPE_t, ndim=2] lord not None,
-                np.ndarray[DTYPE_t, ndim=2] rord not None):
+                 np.ndarray[DTYPE_t, ndim=2] lord not None,
+                 np.ndarray[DTYPE_t, ndim=2] rord not None,
+                 int pad):
     """
     Based on physical pixel locations, determine which pixels are within the orders
+
+    Parameters
+    ----------
+    pixlocn : ndarray
+      Array of pixel locations
+    lord : ndarray
+      left slit edge locations
+    rord : ndarray
+      right slit edge locations
+    pad : int
+      Additional pixels to identify within an order
+
+    Returns
+    -------
+    outfr : ndarray
+      Locations of the orders (0=interorder, numbers >0 intdicate the order number).
+
     """
+
     cdef int x, y, o
     cdef int sz_x, sz_y, sz_o
 
@@ -752,10 +771,10 @@ def order_pixels(np.ndarray[DTYPE_t, ndim=3] pixlocn not None,
     for x in range(sz_x):
         for y in range(sz_y):
             for o in range(sz_o):
-                if (lord[x,o] < rord[x,o]) and (pixlocn[x,y,1]>lord[x,o]) and (pixlocn[x,y,1]<rord[x,o]):
+                if (lord[x,o] < rord[x,o]) and (pixlocn[x,y,1]>lord[x,o]-pad) and (pixlocn[x,y,1]<rord[x,o]+pad):
                     outfr[x,y] = o+1
                     break # Speed up the routine a little by only assigning a single order to a given pixel
-                elif (lord[x,o] > rord[x,o]) and (pixlocn[x,y,1]<lord[x,o]) and (pixlocn[x,y,1]>rord[x,o]):
+                elif (lord[x,o] > rord[x,o]) and (pixlocn[x,y,1]<lord[x,o]+pad) and (pixlocn[x,y,1]>rord[x,o]-pad):
                     outfr[x,y] = o+1
                     break # Speed up the routine a little by only assigning a single order to a given pixel
     return outfr
