@@ -542,4 +542,4 @@ def save_2d_images(slf, fitsdict, clobber=True):
 
     # Finish
     hdulist = pyfits.HDUList(hdus)
-    hdulist.writeto(settings.argflag['run']['directory']['science']+'/spec2d_{:s}.fits'.format(slf._basename), overwrite=clobber)
+    hdulist.writeto(settings.argflag['run']['directory']['science']+'/spec2d_{:s}.fits'.format(slf._basename), clobber=clobber)
