@@ -111,6 +111,16 @@ pixelflat combine reject level    [3.0,3.0]     # Rejection level (in standard d
 pixelflat combine reject replace   maxnonsat     # What to do if all pixels are rejected (options are: min, max, mean, median, weightmean, maxnonsat)
 pixelflat combine satpix      reject        # What to do with saturated pixels (options are: reject, force, nothing)
 
+# SLITLESS FLAT FRAMES (also used to correct pixel-to-pixel variations)
+slitless useframe slitless             # What filetype should be used for pixel-to-pixel calibration (flat), you can also specify a master calibrations file if it exists.
+#pixelflat combine match -1.0           # Match similar flatfields together (a successful match is found when the frames are similar to within N-sigma, where N is the argument of this expression)
+slitless combine method median          # How should the pixel flat frames be combined (mean, median, weightmean)
+slitless combine reject cosmics 20.0         # Sigma level to reject cosmic rays (<= 0.0 means no CR removal)
+slitless combine reject lowhigh  [0,0]         # Number of low/high pixels to reject, [low,high]
+slitless combine reject level    [3.0,3.0]     # Rejection level (in standard deviations), where <= 0.0 means no rejection [low,high]
+slitless combine reject replace   maxnonsat     # What to do if all pixels are rejected (options are: min, max, mean, median, weightmean, maxnonsat)
+slitless combine satpix      reject        # What to do with saturated pixels (options are: reject, force, nothing)
+
 # SCIENCE FRAMES
 science extraction reuse False        # If the science frame has previously been extracted and saved, load the extractions
 science extraction profile gaussian   # Fitting function used to extract science data, only if the extraction is 2D (options are: gaussian, gaussfunc, moffat, moffatfunc) ### NOTE: options with suffix 'func' fits a function to the pixels whereas those without this suffix takes into account the integrated function within each pixel (and is closer to truth)

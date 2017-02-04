@@ -84,3 +84,49 @@ following keyword is set to zero::
 A number greater than zero will result in a PCA fit to the blaze functions.
 The argument of this keyword sets the number of principal components to
 use when reconstructing the blaze functions.
+
+.. _slitless-flats:
+
+Slitless
+========
+
+Overview
+--------
+
+For some instruments (e.g. lris_blue), it is highly advantageous to correct
+for pixel-to-pixel variations using a slitless flat of the twilight sky.
+The primary advantage is that the twilight sky is sufficiently blue to
+provide counts below 3500A.  One observes slitless to smear out the
+solar spectrum.
+
+settings file
+-------------
+
+The first step is to include a block defining slitless flats in the
+:doc:`inst_settings` file.  See the text in settings.lris_blue
+for an example.
+
+setup
+-----
+
+If slitless flats were identified, they should correspond to a unique
+setup entry in your :doc:`setup`.  If not, you will need to either generate
+your own PYPIT file for the slitless flats or re-run :ref:`pypit-setup` after
+modifying the Instrument PYPIT file.
+
+process
+-------
+
+Generate a unique folder for the processing of the slitless flat, one per
+setup (e.g. dispersing element).  Enter the folder and edit the PYPIT file
+to comment out any saturated frames (common) or frames significantly contaminated
+by stars.
+
+Add the following to your PYPIT file::
+
+    reduce slitless
+
+Let it rip::
+
+    run_pypit PYPIT_FILE
+

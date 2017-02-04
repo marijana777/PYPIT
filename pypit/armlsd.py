@@ -4,6 +4,7 @@ from __future__ import (print_function, absolute_import, division, unicode_liter
 
 import numpy as np
 from pypit import arparse as settings
+from pypit import arflat
 from pypit import arflux
 from pypit import arload
 from pypit import armasters
@@ -48,7 +49,6 @@ def ARMLSD(fitsdict, reuseMaster=False, reloadMaster=True):
     status = 0
 
     # Create a list of science exposure classes
-    debugger.set_trace()
     sciexp, setup_dict = armbase.SetupScience(fitsdict)
     if sciexp == 'setup':
         status = 1
@@ -64,6 +64,13 @@ def ARMLSD(fitsdict, reuseMaster=False, reloadMaster=True):
 
     # Masters
     #settings.argflag['reduce']['masters']['file'] = setup_file
+
+    # Slitless flats
+    if settings.argflag['reduce']['slitless']:
+        sless_flats = arflat.slitless(fitsdict, setup_dict)
+        # Currently only writes to disk
+        status = 3
+        return status
 
     # Start reducing the data
     for sc in range(numsci):

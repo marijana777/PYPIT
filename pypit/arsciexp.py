@@ -12,6 +12,7 @@ from pypit import arparse as settings
 from pypit import artrace
 from pypit import arload
 from pypit import arcomb
+from pypit import arflat
 from pypit import arflux
 from pypit import arlris
 from pypit import armasters
@@ -400,7 +401,7 @@ class ScienceExposure:
                 if self._mspixelflatnrm[det-1] is None:
                     # Normalize the flat field
                     msgs.info("Normalizing the pixel flat")
-                    mspixelflatnrm, msblaze = arproc.flatnorm(self, det, self.GetMasterFrame("pixelflat", det),
+                    mspixelflatnrm, msblaze = arflat.flatnorm(self, det, self.GetMasterFrame("pixelflat", det),
                                                             overpix=0, plotdesc="Blaze function")
                     self.SetFrame(self._msblaze, msblaze, det)
                     self.SetMasterFrame(mspixelflatnrm, "normpixelflat", det)
@@ -445,7 +446,7 @@ class ScienceExposure:
                     # Apply gain (instead of ampsec scale)
                     mspixelflat *= arproc.gain_frame(self, det)
                     # Normalize the flat field
-                    mspixelflatnrm, msblaze = arproc.flatnorm(self, det, mspixelflat, overpix=0, plotdesc="Blaze function")
+                    mspixelflatnrm, msblaze = arflat.flatnorm(self, det, mspixelflat, overpix=0, plotdesc="Blaze function")
                     self.SetFrame(self._msblaze, msblaze, det)
             else:  # It must be the name of a file the user wishes to load
                 mspixelflat_name = armasters.user_master_name(settings.argflag['run']['directory']['master'],

@@ -1031,6 +1031,17 @@ class BaseArgFlag(BaseFunctions):
         v = key_allowed_filename(v, allowed)
         self.update(v)
 
+    def reduce_slitless(self, v):
+        """ Reduce *only* the slitless flat frames?
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        v = key_bool(v)
+        self.update(v)
+
     def reduce_trace_useframe(self, v):
         """ What frame should be used to trace the slit edges? You can also
         specify a master calibrations file if it exists.
@@ -1527,6 +1538,116 @@ class BaseArgFlag(BaseFunctions):
           value of the keyword argument given by the name of this function
         """
         v = key_bool(v)
+        self.update(v)
+
+    def slitless_combine_match(self, v):
+        """ Match similar pixel flat frames together? A successful match is found when the frames
+        are similar to within N-sigma, where N is the argument of this expression. If v<0,
+        pixel flat frames will not be matched.
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        v = key_float(v)
+        self.update(v)
+
+    def slitless_combine_method(self, v):
+        """ What method should be used to combine the pixel flat frames?
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        allowed = combine_methods()
+        v = key_allowed(v, allowed)
+        self.update(v)
+
+    def slitless_combine_reject_cosmics(self, v):
+        """ Specify the rejection threshold (in standard deviations) for
+        cosmic rays when combining the pixel flat frames. If v<0, cosmic rays
+        will not be rejected.
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        v = key_float(v)
+        self.update(v)
+
+    def slitless_combine_reject_lowhigh(self, v):
+        """ Specify the number of low/high pixels to be rejected when combining
+        the pixel flat frames, in the format: [low,high].
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        v = key_list(v)
+        if len(v) != 2:
+            msgs.error("The argument of {0:s} must be a two element list".format(get_current_name()))
+        if v[0] < 0 or v[1] < 0:
+            msgs.error("The list values of argument {0:s} must be >= 0".format(get_current_name()))
+        self.update(v)
+
+    def slitless_combine_reject_level(self, v):
+        """ Specify the significance threshold (in standard deviations)
+        used to reject deviant pixels when combining the pixel flat frames,
+        in the format: [low,high].
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        v = key_list(v)
+        if len(v) != 2:
+            msgs.error("The argument of {0:s} must be a two element list".format(get_current_name()))
+        if v[0] < 0.0 or v[1] < 0.0:
+            msgs.error("The list values of argument {0:s} must be >= 0".format(get_current_name()))
+        self.update(v)
+
+    def slitless_combine_reject_replace(self, v):
+        """ What should be done if all pixels are rejected when
+        combining the pixel flat frames?
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        allowed = combine_replaces()
+        v = key_allowed(v, allowed)
+        self.update(v)
+
+    def slitless_combine_satpix(self, v):
+        """ What should be done to saturated pixels when combining the slitless frames?
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        allowed = combine_satpixs()
+        v = key_allowed(v, allowed)
+        self.update(v)
+
+
+    def slitless_useframe(self, v):
+        """ What filetype should be used for pixel-to-pixel calibration (flat),
+        you can also specify a master calibrations file if it exists.
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        allowed = ['slitless']
+        v = key_none_allowed_filename(v, allowed)
         self.update(v)
 
     def trace_combine_match(self, v):
