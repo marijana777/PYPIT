@@ -388,7 +388,41 @@ def trace_object(slf, det, sciframe, varframe, crmask, trim=2.0,
     if msgs._debug['trace_obj']:
         debugger.set_trace()
         #nobj = 1
-    if nobj==1:
+
+    if settings.argflag['science']['extraction']['manual01']['frame'] is not None:
+        # Work on:
+        # Make sure that the frame specified here is matched to the current file PYPIT is reducing
+        # slf.__dict__.keys()
+        # Should match slf._basename: u'OFF_J0321m1439_LRISb_2016Feb16T054820'
+        # But how does user get this name?
+
+        msgs.info('Manual extraction desired. Rejecting all automatically detected objects for now.')
+        # Work on: Instead of rejecting all objects, prepend the manual extraction object
+
+        if settings.argflag['science']['extraction']['manual01']['params'] is None:
+            msgs.error("No parameters found for manual extraction")
+
+        if settings.argflag['science']['extraction']['manual01']['params'][0] == det:
+            nobj = 1
+            cent_disp_manual = settings.argflag['science']['extraction']['manual01']['params'][1] #1 is loc of dispersion pixel,
+                #so, where I see an emission line; 2 is loc of spatial pixel
+            width_disp_manual = settings.argflag['science']['extraction']['manual01']['params'][3][0]
+            objl = np.array([int(cent_disp_manual - slf._lordloc[det-1][cent_disp_manual]) - width_disp_manual])
+            objr = np.array([int(cent_disp_manual - slf._lordloc[det-1][cent_disp_manual]) + width_disp_manual])
+            bckl = np.zeros((trcprof.shape[0], objl.shape[0]))
+            bckr = np.zeros((trcprof.shape[0], objl.shape[0]))
+
+            for o in range(nobj):
+                for x in range(1, bgreg + 1):
+                    if objl[o] - x >= 0:
+                        bckl[objl[o] - x, o] = 1
+                    if objr[o] + x <= trcprof.shape[0] - 1:
+                        bckr[objr[o] + x, o] = 1
+        else:
+            nobj = 0
+            #pass
+
+    if nobj == 1:
         msgs.info("Found {0:d} object".format(objl.size))
         msgs.info("Tracing {0:d} object".format(objl.size))
     else:
@@ -428,20 +462,30 @@ def trace_object(slf, det, sciframe, varframe, crmask, trim=2.0,
     msgs.info("Constructing a trace for all objects")
     trcfunc = trcfunc.reshape((-1,1)).repeat(nobj, axis=1)
     trccopy = trcfunc.copy()
-    for o in range(nobj): trcfunc[:,o] += cval[o]
-    if nobj==1: msgs.info("Converting object trace to detector pixels")
-    else: msgs.info("Converting object traces to detector pixels")
+
+    for o in range(nobj):
+        trcfunc[:,o] += cval[o]
+
+    if nobj==1:
+        msgs.info("Converting object trace to detector pixels")
+    else:
+        msgs.info("Converting object traces to detector pixels")
+
     ofst = slf._lordloc[det-1][:,order].reshape((-1,1)).repeat(nobj,axis=1) + triml
     diff = (slf._rordloc[det-1][:,order].reshape((-1,1)).repeat(nobj,axis=1)
             - slf._lordloc[det-1][:,order].reshape((-1,1)).repeat(nobj,axis=1))
     # Convert central trace
     traces = ofst + (diff-triml-trimr)*trcfunc
     # Convert left object trace
-    for o in range(nobj): trccopy[:,o] = trcfunc[:,o] - cval[o] + objl[o]/(npix-1.0)
+    for o in range(nobj):
+        trccopy[:,o] = trcfunc[:,o] - cval[o] + objl[o]/(npix-1.0)
     trobjl = ofst + (diff-triml-trimr)*trccopy
+
     # Convert right object trace
-    for o in range(nobj): trccopy[:,o] = trcfunc[:,o] - cval[o] + objr[o]/(npix-1.0)
+    for o in range(nobj):
+        trccopy[:,o] = trcfunc[:,o] - cval[o] + objr[o]/(npix-1.0)
     trobjr = ofst + (diff-triml-trimr)*trccopy
+
     # Make an image of pixel weights for each object
     xint = np.linspace(0.0, 1.0, sciframe.shape[0])
     yint = np.linspace(0.0, 1.0, npix)
