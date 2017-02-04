@@ -159,6 +159,19 @@ bias match binning ''             		# Match the shape of standard and science fr
 #bias match naxis0 =0                # Match the shape of bias and science frames
 #bias match naxis1 =0                # Match the shape of bias and science frames
 
+### Slitless Flat frames
+slitless idname None                    # Header key value of bias frame for header keyword keyword+idname
+slitless number 0                       # Number of bias frames to use
+slitless canbe None                     # If there are frames that will be bias ***in addition to other frame types***, include the other frame types here.
+slitless check condition1 lampstat01=off&lampstat02=off&lampstat03=off&lampstat04=off&lampstat05=off&lampstat06=off&lampstat07=off&lampstat08=off&lampstat09=off&lampstat10=off&lampstat11=off&lampstat12=off
+slitless check condition2 hatch=open  # Required for bias
+slitless check condition3 exptime<25     # Required for bias
+slitless check condition4 decker=direct  # Check the same decker as the science frame was used
+slitless check condition5 dispname!=clear
+slitless match binning ''             	# Match the shape of standard and science frames
+slitless match dichroic ''             	# Match the shape of standard and science frames
+slitless match dispname ''             	# Match the shape of standard and science frames
+
 ### Pixel Flat frames
 pixelflat idname OBJECT               # Header key value of flat frame for header keyword keyword+idname
 pixelflat number 5                    # Number of flat frames to use

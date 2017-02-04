@@ -77,7 +77,7 @@ def ARMED(fitsdict, reuseMaster=False, reloadMaster=True):
             # Get data sections
             arproc.get_datasec_trimmed(slf, fitsdict, det, scidx)
             # Setup
-            setup = arsort.instr_setup(slf, det, fitsdict, setup_dict, must_exist=True)
+            setup = arsort.instr_setup(slf._idx_arcs[0], det, fitsdict, setup_dict, must_exist=True, sciexp=slf)
             settings.argflag['reduce']['masters']['setup'] = setup
             ###############
             # Generate master bias frame

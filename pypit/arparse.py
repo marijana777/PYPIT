@@ -1984,6 +1984,7 @@ class BaseSpect(BaseFunctions):
         self.update([], ll="bias_index".split("_"))
         self.update([], ll="pinhole_index".split("_"))
         self.update([], ll="pixelflat_index".split("_"))
+        self.update([], ll="slitless_index".split("_"))
         self.update([], ll="science_index".split("_"))
         self.update([], ll="standard_index".split("_"))
         self.update([], ll="trace_index".split("_"))
@@ -2007,7 +2008,7 @@ class BaseSpect(BaseFunctions):
         return
 
     def set_paramlist(self, lstall):
-        frmtyp = ["standard", "bias", "pixelflat", "trace", "pinhole", "arc"]
+        frmtyp = ["standard", "bias", "pixelflat", "trace", "pinhole", "arc", "slitless"]
         for ll in range(len(lstall)):
             lst = lstall[ll]
             cnt = 1
@@ -2059,6 +2060,7 @@ class BaseSpect(BaseFunctions):
                 elif lst[0] in frmtyp and lst[1] == "match":
                     self.update(lst[-1], ll=lst[:-1])
                 else:
+                    debugger.set_trace()
                     msgs.error("There appears to be an error on the following input line:" + msgs.newline() +
                                " ".join(lst))
         return
@@ -3120,6 +3122,68 @@ class BaseSpect(BaseFunctions):
         """
         v = key_int(v)
         #key_min_val(v, -1)
+        self.update(v)
+
+    def slitless_canbe(self, v):
+        """ If there are frames that will be a slitlesst in addition to other frame types,
+        include the other frame types here.
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        v = key_none_list(v)
+        self.update(v)
+
+    def slitless_check_condition(self, v, cnmbr=1):
+        """ Check that a frame satisfies a series of conditions before it is
+        labelled as a slitless flat frame. Multiple conditions can be specified,
+        where each new condition has a different integer suffix appended to
+        the condition variable.
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        cname = get_nmbr_name(cnmbr=cnmbr)
+        v = key_check(v)
+        self.update(v, ll=cname.split('_'))
+
+    def slitless_idname(self, v):
+        """ Header key value of slitless flat frames for header keyword: 'keyword idname'
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        self.update(v)
+
+    def slitless_lscomb(self, v):
+        """ Combine frames with a different exposure time?
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        v = key_bool(v)
+        self.update(v)
+
+    def slitless_number(self, v):
+        """ Number of slitless flat frames to use
+
+        Parameters
+        ----------
+        v : str
+          value of the keyword argument given by the name of this function
+        """
+        v = key_int(v)
+        #assert key_min_val(v,-1)
+        #if v < -1:
+        #    msgs.error("The argument of {0:s} must be >= -1".format(get_current_name()))
         self.update(v)
 
     def standard_canbe(self, v):

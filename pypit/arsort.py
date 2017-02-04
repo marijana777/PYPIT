@@ -54,6 +54,7 @@ def sort_data(fitsdict, flag_unknown=False):
                  'bias': np.array([], dtype=np.int),
                  'pinhole': np.array([], dtype=np.int),
                  'pixelflat': np.array([], dtype=np.int),
+                 'slitless': np.array([], dtype=np.int),
                  'trace': np.array([], dtype=np.int),
                  'unknown': np.array([], dtype=np.int),
                  'arc': np.array([], dtype=np.int)})
@@ -339,8 +340,8 @@ def match_science(fitsdict, filesort):
     """
 
     msgs.info("Matching calibrations to Science frames")
-    ftag = ['standard', 'bias', 'dark', 'pixelflat', 'pinhole', 'trace', 'arc']
-    setup_ftag = dict(standard=0, bias=0, dark=0, pixelflat=0, pinhole=0, trace=0, arc=1)
+    ftag = ['standard', 'bias', 'dark', 'pixelflat', 'pinhole', 'slitless', 'trace', 'arc']
+    setup_ftag = dict(standard=0, bias=0, dark=0, pixelflat=0, pinhole=0, slitless=0, trace=0, arc=1)
     nfiles = fitsdict['filename'].size
     iSCI = filesort['science']
     iSTD = filesort['standard']
@@ -348,9 +349,10 @@ def match_science(fitsdict, filesort):
     iDRK = filesort['dark']
     iPFL = filesort['pixelflat']
     iBFL = filesort['pinhole']
+    iSLS = filesort['slitless']
     iTRC = filesort['trace']
     iARC = filesort['arc']
-    iARR = [iSTD, iBIA, iDRK, iPFL, iBFL, iTRC, iARC]
+    iARR = [iSTD, iBIA, iDRK, iPFL, iBFL, iSLS, iTRC, iARC]
     nSCI = iSCI.size
     i = 0
     while i < nSCI:
@@ -683,9 +685,41 @@ def make_dirs(fitsdict, filesort):
     return sci_targs
 
 
-def calib_set(isetup_dict, sciexp, fitsdict):
+def scan_for_slitless(fitsdict, filesort, maxexp=25.):
+    """ Search for slitless flats
+
+    Parameters
+    ----------
+    fitsdict : dict
+    filesort : dict
+
+    Returns
+    -------
+
     """
-    Ordering is 'aa', 'ab', ...
+    # Flat indices
+    flat_idx = np.concatenate([filesort[key] for key in ['pixelflat']])
+    flat_idx = np.unique(flat_idx)
+    # Decker
+    deck_bool = [fitsdict['decker'][flat_idx]==key for key in ['direct', 'none']]
+    gd_deck = np.any(deck_bool, axis=0)
+    # Disperser
+    disp_bool = [fitsdict['dispname'][flat_idx]==key for key in ['clear', 'none']]
+    bad_disp = np.any(disp_bool, axis=0)
+    # Exp time
+    gd_exp = fitsdict['exptime'][flat_idx] <= maxexp
+    # Check on twilight..
+    # Union
+    gd_sless = gd_deck & (~bad_disp) & gd_exp
+    # Add frametype
+    sless_idx = flat_idx[gd_sless]
+    filesort['slitless'] = sless_idx
+    # Return
+    return
+
+def calib_set(isetup_dict, sciexp, fitsdict):
+    """ Ordering is 'aa', 'ab', ...
+
     Parameters
     ----------
     isetup_dict
@@ -781,8 +815,8 @@ def det_setup(isetup_dict, ddict):
     return dkey
 
 
-def instr_setup(sciexp, det, fitsdict, setup_dict, must_exist=False,
-                skip_cset=False):
+def instr_setup(idx, det, fitsdict, setup_dict, must_exist=False,
+                skip_cset=False, sciexp=None):
     """ Define instrument config
     Make calls to detector and calib set
 
@@ -793,7 +827,8 @@ def instr_setup(sciexp, det, fitsdict, setup_dict, must_exist=False,
 
     Parameters
     ----------
-    sciexp : ScienceExposure
+    idx : int
+      Index of frame to define setup, typically an arc e.g. sciexp._idx_arcs[0]
     setup_dict
     skip_cset : bool, optional
       Skip calib_set;  only used when first generating instrument .setup file
@@ -808,19 +843,18 @@ def instr_setup(sciexp, det, fitsdict, setup_dict, must_exist=False,
     cfig_str = string.ascii_uppercase
     cstr = '--'
     # Arc
-    idx = sciexp._idx_arcs
-    disp_name = fitsdict["dispname"][idx[0]]
-    disp_angle = fitsdict["dispangle"][idx[0]]
+    disp_name = fitsdict["dispname"][idx]
+    disp_angle = fitsdict["dispangle"][idx]
     # Common
-    dichroic = fitsdict["dichroic"][idx[0]]
-    decker = fitsdict["decker"][idx[0]]
-    slitwid = fitsdict["slitwid"][idx[0]]
-    slitlen = fitsdict["slitlen"][idx[0]]
+    dichroic = fitsdict["dichroic"][idx]
+    decker = fitsdict["decker"][idx]
+    slitwid = fitsdict["slitwid"][idx]
+    slitlen = fitsdict["slitlen"][idx]
 
     # Detector -- These may not be set properly from the header alone, e.g. LRIS
-    binning = fitsdict["binning"][idx[0]]
-    naxis0 = fitsdict["naxis0"][idx[0]]
-    naxis1 = fitsdict["naxis1"][idx[0]]
+    binning = fitsdict["binning"][idx]
+    naxis0 = fitsdict["naxis0"][idx]
+    naxis1 = fitsdict["naxis1"][idx]
     namp = settings.spect[dnum]["numamplifiers"]
 
     # Generate
@@ -1039,6 +1073,7 @@ def load_sorted(sorted_file):
 
 def write_sorted(srt_tbl, group_dict, setup_dict):
     """ Write the .sorted file
+
     Parameters
     ----------
     group_dict
@@ -1054,7 +1089,10 @@ def write_sorted(srt_tbl, group_dict, setup_dict):
     # Keys
     setups = list(group_dict.keys())
     setups.sort()
-    ftypes = list(group_dict[setups[0]].keys())
+    ftypes = []
+    for gkey in group_dict.keys():
+        ftypes += list(group_dict[gkey].keys())
+    ftypes = np.unique(np.array(ftypes)).tolist()
     ftypes.sort()
     # Loop on Setup
     asciiord = ['filename', 'date', 'frametype', 'target', 'exptime', 'dispname', 'decker']
@@ -1068,6 +1106,8 @@ def write_sorted(srt_tbl, group_dict, setup_dict):
         # ID files
         for key in ftypes:
             # Sort
+            if key not in group_dict[setup].keys():
+                continue
             gfiles = group_dict[setup][key]
             gfiles.sort()
             for ifile in gfiles:

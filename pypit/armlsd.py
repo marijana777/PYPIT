@@ -48,6 +48,7 @@ def ARMLSD(fitsdict, reuseMaster=False, reloadMaster=True):
     status = 0
 
     # Create a list of science exposure classes
+    debugger.set_trace()
     sciexp, setup_dict = armbase.SetupScience(fitsdict)
     if sciexp == 'setup':
         status = 1
@@ -80,7 +81,7 @@ def ARMLSD(fitsdict, reuseMaster=False, reloadMaster=True):
             # Get data sections
             arproc.get_datasec_trimmed(slf, fitsdict, det, scidx)
             # Setup
-            setup = arsort.instr_setup(slf, det, fitsdict, setup_dict, must_exist=True)
+            setup = arsort.instr_setup(slf._idx_arcs[0], det, fitsdict, setup_dict, must_exist=True, sciexp=slf)
             settings.argflag['reduce']['masters']['setup'] = setup
             ###############
             # Generate master bias frame

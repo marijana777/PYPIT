@@ -22,6 +22,7 @@ from pypit import ardebug as debugger
 def SetupScience(fitsdict):
     """ Create an exposure class for every science frame
     Also links to standard star frames and calibrations
+    Also search for slitless twilight flats
 
     Parameters
     ----------
@@ -66,12 +67,19 @@ def SetupScience(fitsdict):
     setupIDs = []
     for sc in range(numsci):
         for kk in range(settings.spect['mosaic']['ndet']):
-            setupID = arsort.instr_setup(sciexp[sc], kk+1, fitsdict, setup_dict, skip_cset=skip_cset)
-            if kk == 0: # Only save the first detector for run setup
+            setupID = arsort.instr_setup(sciexp[sc]._idx_arcs[0], kk+1, fitsdict, setup_dict, skip_cset=skip_cset, sciexp=sciexp[sc])
+            if kk == 0:  # Only save the first detector for run setup
                 setupIDs.append(setupID)
-    # Calib IDs
+    # Slitless flats?
+    #arsort.scan_for_slitless(fitsdict, filesort)
+    sless_IDs = []
+    for sidx in filesort['slitless']:
+        slessID = arsort.instr_setup(sidx, 1, fitsdict, setup_dict, skip_cset=True)
+        sless_IDs.append(slessID)
+    # Group
     group_dict = {}
     if settings.argflag['run']['setup']: # Collate all matching files
+        # Loop on science frames
         for sc,setupID in enumerate(setupIDs):
             scidx = sciexp[sc]._idx_sci[0]
             # Set group_key
@@ -96,6 +104,14 @@ def SetupScience(fitsdict):
                             group_dict[config_key]['stdobj'].append(fitsdict['target'][idx])
                     if key == 'science':  # Add target name
                         group_dict[config_key]['sciobj'].append(fitsdict['target'][scidx])
+        # Loop on slitless frames -- Separate setups
+        for slessID in sless_IDs:
+            config_key = slessID[0]
+            if config_key not in group_dict.keys():
+                group_dict[config_key] = {}
+                mti = np.array(sless_IDs) == slessID
+                sidx = filesort['slitless'][mti]
+                group_dict[config_key]['slitless'] = fitsdict['filename'][sidx].tolist()
         # Write .sorted file
         arsort.write_sorted(srt_tbl, group_dict, setup_dict)
 
