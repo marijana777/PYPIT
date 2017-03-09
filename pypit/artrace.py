@@ -404,11 +404,11 @@ def trace_object(slf, det, sciframe, varframe, crmask, trim=2.0,
 
         if settings.argflag['science']['extraction']['manual01']['params'][0] == det:
             nobj = 1
-            cent_disp_manual = settings.argflag['science']['extraction']['manual01']['params'][1] #1 is loc of dispersion pixel,
-                #so, where I see an emission line; 2 is loc of spatial pixel
-            width_disp_manual = settings.argflag['science']['extraction']['manual01']['params'][3][0]
-            objl = np.array([int(cent_disp_manual - slf._lordloc[det-1][cent_disp_manual]) - width_disp_manual])
-            objr = np.array([int(cent_disp_manual - slf._lordloc[det-1][cent_disp_manual]) + width_disp_manual])
+            cent_spatial_manual = settings.argflag['science']['extraction']['manual01']['params'][1] #1 is loc of spatial pixel,
+                #so, where I see an emission line; 2 is loc of dispersion/spectral pixel
+            width_spatial_manual = settings.argflag['science']['extraction']['manual01']['params'][3][0]
+            objl = np.array([int(cent_spatial_manual - slf._lordloc[det-1][cent_spatial_manual]) - width_spatial_manual])
+            objr = np.array([int(cent_spatial_manual - slf._lordloc[det-1][cent_spatial_manual]) + width_spatial_manual])
             bckl = np.zeros((trcprof.shape[0], objl.shape[0]))
             bckr = np.zeros((trcprof.shape[0], objl.shape[0]))
 
