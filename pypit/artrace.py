@@ -298,7 +298,7 @@ def expand_slits(slf, mstrace, det, ordcen, extord):
 
 def trace_object(slf, det, sciframe, varframe, crmask, trim=2.0,
                  triml=None, trimr=None, sigmin=2.0, bgreg=None,
-                 maskval=-999999.9, order=0, doqa=True):
+                 maskval=-999999.9, order=0, doqa=True, standard=False):
     """ Finds objects, and traces their location on the detector
     Parameters
     ----------
@@ -389,7 +389,7 @@ def trace_object(slf, det, sciframe, varframe, crmask, trim=2.0,
         debugger.set_trace()
         #nobj = 1
 
-    if settings.argflag['science']['extraction']['manual01']['frame'] is not None:
+    if settings.argflag['science']['extraction']['manual01']['frame'] is not None and not standard:
         # Work on:
         # Make sure that the frame specified here is matched to the current file PYPIT is reducing
         # slf.__dict__.keys()
@@ -420,7 +420,6 @@ def trace_object(slf, det, sciframe, varframe, crmask, trim=2.0,
                         bckr[objr[o] + x, o] = 1
         else:
             nobj = 0
-            #pass
 
     if nobj == 1:
         msgs.info("Found {0:d} object".format(objl.size))
