@@ -339,6 +339,7 @@ def scale_spectra(spectra, sn2, iref=0, scale_method='auto', hand_scale=None,
             spectra.data['sig'][qq,:] *= hand_scale[qq]
             #arrsky[*, j] = HAND_SCALE[j]*sclsky[*, j]
             scales.append(hand_scale[qq])
+            msgs.info("Using hand scale={} for exposure={}".format(hand_scale[qq],qq))
             #
         elif ((rms_sn <= SN_MAX_MEDSCALE) and (rms_sn > SN_MIN_MEDSCALE)) or scale_method=='median':
             omethod = 'median'
@@ -354,9 +355,10 @@ def scale_spectra(spectra, sn2, iref=0, scale_method='auto', hand_scale=None,
             spectra.data['flux'][qq,:] *= med_scale
             spectra.data['sig'][qq,:] *= med_scale
             #
-            msgs.info("Using scale={} for exposure={}".format(med_scale,qq))
+            msgs.info("Using median scale={} for exposure={}".format(med_scale,qq))
             scales.append(med_scale)
         elif rms_sn <= SN_MIN_MEDSCALE:
+            msgs.info("Not scaling any exposures")
             omethod = 'none_SN'
         elif (rms_sn > SN_MAX_MEDSCALE) or scale_method=='poly':
             msgs.work("Should be using poly here, not median")
