@@ -354,7 +354,7 @@ def scale_spectra(spectra, sn2, iref=0, scale_method='auto', hand_scale=None,
             spectra.data['flux'][qq,:] *= med_scale
             spectra.data['sig'][qq,:] *= med_scale
             #
-            msgs.info("Using scale={} for exposure={}".format(qq))
+            msgs.info("Using scale={} for exposure={}".format(med_scale,qq))
             scales.append(med_scale)
         elif rms_sn <= SN_MIN_MEDSCALE:
             omethod = 'none_SN'
