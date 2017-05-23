@@ -351,6 +351,7 @@ def scale_spectra(spectra, sn2, iref=0, scale_method='auto', hand_scale=None,
             spectra.select = qq
             med_spec, std_spec = median_flux(spectra)
             # Apply
+            debugger.set_trace()
             med_scale= np.minimum(med_ref/med_spec, 10.0)
             spectra.data['flux'][qq,:] *= med_scale
             spectra.data['sig'][qq,:] *= med_scale
@@ -569,6 +570,7 @@ def coadd_spectra(spectra, wave_grid_method='concatenate', niter=5,
     sn2, weights = sn_weight(rspec)
 
     # Scale (modifies rspec)
+    debugger.set_trace()
     scales, omethod = scale_spectra(rspec, sn2, scale_method=scale_method, **kwargs)
 
     # Initial coadd
