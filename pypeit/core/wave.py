@@ -375,7 +375,7 @@ def flexure_obj(specobjs, maskslits, method, sky_file, mxshft=None):
                 flex_dict[key].append(fdict[key])
             flex_dict['sky_spec'].append(new_sky)
         flex_list.append(flex_dict.copy())
-    return flex_list 
+    return flex_list   
 
 
 # TODO I don't see why maskslits is needed in these routine, since if the slits are masked in arms, they won't be extracted
