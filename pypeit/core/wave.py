@@ -323,7 +323,7 @@ def flexure_obj(specobjs, maskslits, method, sky_file, mxshft=None):
                     msgs.warn("No previous good solution.  Searching for the first good solution in the spectra")
                     # find first "good" fdict (this case occurs if there are no previous good solutions)
                     jfdict = None
-                    for jslit in gdslits:
+                    for jslit in gdslits: 
                         jindx = specobjs.slitid == jslit
                         jthis_specobjs = specobjs[jindx]
                         for jspecobj in jthis_specobjs:
