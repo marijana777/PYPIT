@@ -20,7 +20,7 @@ from pypeit import msgs
 from pypeit import specobjs
 from pypeit import debugger
 from pypeit.core import parse
-        
+
 def load_extraction(name, frametype='<None>', wave=True):
     msgs.info('Loading a pre-existing {0} extraction frame:'.format(frametype)
                 + msgs.newline() + name)
